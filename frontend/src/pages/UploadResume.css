@@ -1,0 +1,99 @@
+.upload-resume {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.upload-resume h2 {
+  text-align: center;
+  margin-bottom: 2rem;
+  font-size: 1.8rem;
+  color: #2c3e50;
+}
+
+.upload-form {
+  background: white;
+  padding: 2rem;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.upload-area {
+  margin-bottom: 1.5rem;
+  position: relative;
+}
+
+#file-input {
+  display: none;
+}
+
+.file-label {
+  display: block;
+  padding: 3rem;
+  text-align: center;
+  border: 2px dashed #3498db;
+  border-radius: 8px;
+  background-color: #ecf0f1;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 500;
+  color: #2c3e50;
+}
+
+.file-label:hover {
+  border-color: #2980b9;
+  background-color: #d5dbdb;
+}
+
+#file-input:disabled + .file-label {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.error-message {
+  color: #e74c3c;
+  background-color: #fadbd8;
+  padding: 1rem;
+  border-radius: 5px;
+  margin-bottom: 1rem;
+}
+
+.submit-button {
+  width: 100%;
+  padding: 1rem;
+  background-color: #667eea;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.submit-button:hover:not(:disabled) {
+  background-color: #5568d3;
+}
+
+.submit-button:disabled {
+  background-color: #bdc3c7;
+  cursor: not-allowed;
+}
+
+.info-box {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background-color: #e8f4f8;
+  border-radius: 5px;
+  border-left: 4px solid #3498db;
+}
+
+.info-box h3 {
+  margin-top: 0;
+  color: #2c3e50;
+}
+
+.info-box ul {
+  list-style-position: inside;
+  margin: 0;
+  color: #555;
+}
