@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Optional
 
 class Settings(BaseSettings):
     # Application
@@ -12,12 +12,16 @@ class Settings(BaseSettings):
 
     # OpenAI
     OPENAI_API_KEY: str
-    OPENAI_MODEL: str = "gpt-4"
+    OPENAI_MODEL: str = "gpt-4o-mini"
 
     # Pinecone
     PINECONE_API_KEY: str
     PINECONE_ENVIRONMENT: str
     PINECONE_INDEX: str = "job-listings"
+
+    # Optional web search API keys
+    SERPER_API_KEY: Optional[str] = None
+    TAVILY_API_KEY: Optional[str] = None
 
     class Config:
         env_file = ".env"
