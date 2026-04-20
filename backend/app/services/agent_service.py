@@ -1,6 +1,6 @@
 """Main agent service for orchestrating resume-to-job matching"""
 
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
 
 from app.services.resume_parser import ResumeParser
@@ -14,9 +14,9 @@ class MatchingAgent:
     def __init__(self):
         self.parser = ResumeParser()
         self.rag = RAGService()
-        self.llm = ChatOpenAI(
-            api_key=settings.OPENAI_API_KEY,
-            model="gpt-3.5-turbo",
+        self.llm = ChatGoogleGenerativeAI(
+            google_api_key=settings.GOOGLE_API_KEY,
+            model=settings.GEMINI_MODEL,
             temperature=0.1
         )
 

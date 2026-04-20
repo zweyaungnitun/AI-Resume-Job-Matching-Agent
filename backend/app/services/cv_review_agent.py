@@ -1,7 +1,7 @@
 """CV Review Agent — analyzes CV quality, structure, ATS compatibility, and content"""
 
 import json
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
 
 from app.config import settings
@@ -11,9 +11,9 @@ class CVReviewAgent:
     """Agent that reviews a CV and produces a structured quality report"""
 
     def __init__(self):
-        self.llm = ChatOpenAI(
-            api_key=settings.OPENAI_API_KEY,
-            model=settings.OPENAI_MODEL,
+        self.llm = ChatGoogleGenerativeAI(
+            google_api_key=settings.GOOGLE_API_KEY,
+            model=settings.GEMINI_MODEL,
             temperature=0.1,
         )
 

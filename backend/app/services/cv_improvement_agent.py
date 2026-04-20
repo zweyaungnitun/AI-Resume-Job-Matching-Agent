@@ -1,7 +1,7 @@
 """CV Improvement Agent — generates targeted improvement recommendations"""
 
 import json
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
 
 from app.config import settings
@@ -11,9 +11,9 @@ class CVImprovementAgent:
     """Agent that recommends specific, actionable CV improvements for a target job"""
 
     def __init__(self):
-        self.llm = ChatOpenAI(
-            api_key=settings.OPENAI_API_KEY,
-            model=settings.OPENAI_MODEL,
+        self.llm = ChatGoogleGenerativeAI(
+            google_api_key=settings.GOOGLE_API_KEY,
+            model=settings.GEMINI_MODEL,
             temperature=0.2,
         )
 

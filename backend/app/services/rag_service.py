@@ -2,10 +2,9 @@
 
 import numpy as np
 from pinecone import Pinecone
-from langchain_openai import OpenAIEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
 from app.config import settings
-
 
 class RAGService:
     """Retrieval-Augmented Generation service for job matching"""
@@ -14,14 +13,13 @@ class RAGService:
         self.pinecone_api_key = settings.PINECONE_API_KEY
         self.pinecone_env = settings.PINECONE_ENVIRONMENT
         self.index_name = settings.PINECONE_INDEX
-
         self.pc = None
         self.index = None
 
         # Initialize embeddings
-        self.embeddings = OpenAIEmbeddings(
-            api_key=settings.OPENAI_API_KEY,
-            model="text-embedding-3-small"
+        self.embeddings = GoogleGenerativeAIEmbeddings(
+            google_api_key=settings.GOOGLE_API_KEY,
+            model="models/embedding-001"
         )
 
     def _ensure_pinecone(self):

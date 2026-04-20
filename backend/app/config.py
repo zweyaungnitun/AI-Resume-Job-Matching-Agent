@@ -10,9 +10,9 @@ class Settings(BaseSettings):
     # API
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8000"]
 
-    # OpenAI
-    OPENAI_API_KEY: str
-    OPENAI_MODEL: str = "gpt-4o-mini"
+    # Google Gemini
+    GOOGLE_API_KEY: str
+    GEMINI_MODEL: str = "gemini-1.5-flash"
 
     # Pinecone
     PINECONE_API_KEY: str
