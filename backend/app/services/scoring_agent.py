@@ -2,7 +2,7 @@
 
 import json
 import numpy as np
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_core.prompts import PromptTemplate
 
 from app.config import settings
@@ -12,14 +12,14 @@ class ScoringAgent:
     """Agent that scores CV-job compatibility with granular breakdown"""
 
     def __init__(self):
-        self.llm = ChatOpenAI(
-            api_key=settings.OPENAI_API_KEY,
-            model=settings.OPENAI_MODEL,
+        self.llm = ChatGoogleGenerativeAI(
+            google_api_key=settings.GOOGLE_API_KEY,
+            model=settings.GEMINI_MODEL,
             temperature=0.1,
         )
-        self.embeddings = OpenAIEmbeddings(
-            api_key=settings.OPENAI_API_KEY,
-            model="text-embedding-3-small",
+        self.embeddings = GoogleGenerativeAIEmbeddings(
+            google_api_key=settings.GOOGLE_API_KEY,
+            model="models/embedding-001",
         )
 
     def score(self, resume_text: str, job_analysis: dict, company_info: dict = None) -> dict:
