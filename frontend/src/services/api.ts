@@ -3,6 +3,8 @@
  * Integrates with the multi-agent backend system
  */
 
+import { logger } from '../lib/logger';
+
 const API_BASE_URL = `${window.location.origin}/api`;
 
 interface ApiResponse<T> {
@@ -16,6 +18,7 @@ interface ApiResponse<T> {
 // ──────────────────────────────────────────────────────────────────────
 
 export async function uploadResume(file: File): Promise<ApiResponse<any>> {
+  logger.info('Uploading resume', { fileName: file.name });
   const formData = new FormData();
   formData.append("file", file);
 
@@ -24,8 +27,43 @@ export async function uploadResume(file: File): Promise<ApiResponse<any>> {
     body: formData,
   });
 
-  if (!response.ok) throw new Error(`Upload failed: ${response.statusText}`);
-  return response.json();
+  if (!response.ok) {
+    logger.error('Upload failed', response.statusText);
+    throw new Error(`Upload failed: ${response.statusText}`);
+  }
+  const data = await response.json();
+  logger.debug('Upload response', data);
+
+  // Normalize response to match frontend expectations
+  return {
+    ...data,
+    text: data.raw_text || data.text,
+  };
+}
+
+export async function extractResumeData(
+  rawText: string,
+  fileType: string,
+  filename: string
+): Promise<ApiResponse<any>> {
+  logger.info('Extracting resume data', { fileType, filename });
+  const response = await fetch(`${API_BASE_URL}/resume/extract`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      raw_text: rawText,
+      file_type: fileType,
+      filename: filename,
+    }),
+  });
+
+  if (!response.ok) {
+    logger.error('Resume extraction failed');
+    throw new Error("Resume extraction failed");
+  }
+  const data = await response.json();
+  logger.debug('Extracted resume data', data);
+  return data;
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -33,25 +71,44 @@ export async function uploadResume(file: File): Promise<ApiResponse<any>> {
 // ──────────────────────────────────────────────────────────────────────
 
 export async function reviewCV(resumeText: string): Promise<ApiResponse<any>> {
+  logger.info('Reviewing CV');
   const response = await fetch(`${API_BASE_URL}/agent/review-cv`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ resume_text: resumeText }),
   });
 
-  if (!response.ok) throw new Error("CV review failed");
-  return response.json();
+  if (!response.ok) {
+    logger.error('CV review failed');
+    const data = await response.json().catch(() => ({}));
+    if (data && data.error && data.error.includes('region is not supported')) {
+      return {
+        success: false,
+        error: 'Your region is not supported for this AI service. Please try again from a supported location.'
+      };
+    }
+    throw new Error("CV review failed");
+  }
+  const data = await response.json();
+  logger.debug('CV review response', data);
+  return data;
 }
 
 export async function getRAGMatches(resumeText: string, numMatches: number = 5): Promise<ApiResponse<any>> {
+  logger.info('Getting RAG matches', { numMatches });
   const response = await fetch(`${API_BASE_URL}/agent/rag-match`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ resume_text: resumeText, num_matches: numMatches }),
   });
 
-  if (!response.ok) throw new Error("RAG matching failed");
-  return response.json();
+  if (!response.ok) {
+    logger.error('RAG matching failed');
+    throw new Error("RAG matching failed");
+  }
+  const data = await response.json();
+  logger.debug('RAG matches response', data);
+  return data;
 }
 
 export async function searchJobs(query: string): Promise<ApiResponse<any>> {
