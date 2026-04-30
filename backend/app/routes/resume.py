@@ -1,4 +1,6 @@
 import os
+import logging
+import traceback
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from pydantic import BaseModel
 
@@ -22,6 +24,12 @@ class ResumeData(BaseModel):
 
 class ParsedResumeResponse(BaseModel):
     raw_text: str
+    file_type: str
+    filename: str
+
+
+class ExtractedDataResponse(BaseModel):
+    raw_text: str
     skills: list[str]
     experience: list[dict]
     file_type: str
@@ -30,7 +38,7 @@ class ParsedResumeResponse(BaseModel):
 
 @router.post("/upload", response_model=ParsedResumeResponse)
 async def upload_resume(file: UploadFile = File(...)):
-    """Upload and parse a resume (PDF or DOCX)"""
+    """Upload and extract text from resume (PDF or DOCX) - no AI processing"""
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided")
 
@@ -49,32 +57,46 @@ async def upload_resume(file: UploadFile = File(...)):
             content = await file.read()
             f.write(content)
 
-        # Parse based on file type
+        # Parse based on file type (text extraction only, no AI)
         if file_ext == ".pdf":
             parsed = parser.parse_pdf(file_path)
         else:  # .docx or .doc
             parsed = parser.parse_docx(file_path)
 
-        raw_text = parsed["raw_text"]
-
-        # Extract skills and experience
-        skills = parser.extract_skills(raw_text)
-        experience = parser.extract_experience(raw_text)
-
         return ParsedResumeResponse(
-            raw_text=raw_text,
-            skills=skills,
-            experience=experience,
+            raw_text=parsed["raw_text"],
             file_type=parsed["file_type"],
             filename=file.filename
         )
 
     except Exception as e:
+        logging.error(f"Error processing resume upload: {str(e)}")
+        logging.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
     finally:
         # Clean up temporary file
         if os.path.exists(file_path):
             os.remove(file_path)
+
+
+@router.post("/extract", response_model=ExtractedDataResponse)
+async def extract_resume_data(request: ParsedResumeResponse):
+    """Extract skills and experience from resume text using AI - call only when needed"""
+    try:
+        skills = parser.extract_skills(request.raw_text)
+        experience = parser.extract_experience(request.raw_text)
+
+        return ExtractedDataResponse(
+            raw_text=request.raw_text,
+            skills=skills,
+            experience=experience,
+            file_type=request.file_type,
+            filename=request.filename
+        )
+    except Exception as e:
+        logging.error(f"Error extracting resume data: {str(e)}")
+        logging.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Error extracting data: {str(e)}")
 
 
 @router.post("/parse")

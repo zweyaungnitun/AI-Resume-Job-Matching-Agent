@@ -5,14 +5,17 @@ from contextlib import asynccontextmanager
 
 from app.config import settings
 from app.routes import resume, agent, health
+from app.logger import get_logger
+
+logger = get_logger("main")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    print("Starting up application...")
+    logger.info("Starting up application...")
     yield
     # Shutdown
-    print("Shutting down application...")
+    logger.info("Shutting down application...")
 
 app = FastAPI(
     title="Resume-Job Matching Agent",

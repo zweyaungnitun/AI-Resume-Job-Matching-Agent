@@ -1,10 +1,14 @@
+import logging
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional, Literal
 
 from app.services.agent_service import MatchingAgent
 from app.services.orchestrator import MultiAgentOrchestrator
+from app.logger import get_logger
 
+logger = get_logger(__name__)
 router = APIRouter(prefix="/agent", tags=["agent"])
 
 agent = MatchingAgent()
@@ -60,6 +64,30 @@ class CVReviewRequest(BaseModel):
     resume_text: str
 
 
+class CVReviewResponse(BaseModel):
+    overall_score: int
+    ats_score: int
+    structure_score: int
+    content_score: int
+    contact_info: dict
+    sections_found: list[str]
+    sections_missing: list[str]
+    strengths: list[str]
+    weaknesses: list[str]
+    ats_keywords_present: list[str]
+    ats_issues: list[str]
+    writing_quality: dict
+    overall_assessment: str
+    immediate_fixes: list[str]
+
+    # Accept both 'immediate_fixes' and 'fixes' for backward compatibility
+    @classmethod
+    def validate(cls, value):
+        if 'fixes' in value and 'immediate_fixes' not in value:
+            value['immediate_fixes'] = value['fixes']
+        return value
+
+
 class FullAnalysisRequest(BaseModel):
     resume_text: str
     job_source_type: Literal["url", "text", "search"]
@@ -74,6 +102,28 @@ class JobSearchRequest(BaseModel):
 class RAGMatchRequest(BaseModel):
     resume_text: str
     num_matches: int = 5
+
+
+class ComprehensiveJobMatchRequest(BaseModel):
+    resume_text: str
+    job_query: str = None
+    num_rag_matches: int = 5
+    num_web_matches: int = 5
+    include_web_search: bool = True
+
+
+class SkillBasedJobMatchRequest(BaseModel):
+    resume_text: str
+    target_skills: list[str]
+    num_rag_matches: int = 5
+    num_web_matches: int = 5
+
+
+class RoleBasedJobMatchRequest(BaseModel):
+    resume_text: str
+    target_role: str
+    num_rag_matches: int = 5
+    num_web_matches: int = 5
 
 
 # ── Legacy endpoints (unchanged) ──────────────────────────────────────────────
@@ -146,8 +196,19 @@ async def review_cv(request: CVReviewRequest):
     if len(request.resume_text.strip()) < 50:
         raise HTTPException(status_code=400, detail="Resume text too short to review.")
     try:
-        return orchestrator.review_cv_only(request.resume_text)
+        logger.info(f"CV review requested: {len(request.resume_text)} chars")
+        result = orchestrator.review_cv_only(request.resume_text)
+        logger.info("CV review completed successfully")
+        # Flatten if result is nested under 'cv_review'
+        if isinstance(result, dict) and 'cv_review' in result:
+            result = result['cv_review']
+        return CVReviewResponse(**result)
     except Exception as e:
+        logger.error(f"CV review failed: {e}")
+        if 'User location is not supported' in str(e):
+            return JSONResponse(status_code=400, content={
+                "error": "Your region is not supported for this AI service. Please try again from a supported location."
+            })
         raise HTTPException(status_code=500, detail=f"CV review failed: {str(e)}")
 
 
@@ -160,8 +221,12 @@ async def rag_match(request: RAGMatchRequest):
     if len(request.resume_text.strip()) < 50:
         raise HTTPException(status_code=400, detail="Resume text too short.")
     try:
-        return orchestrator.rag_match_only(request.resume_text, request.num_matches)
+        logger.info(f"RAG matching requested: {len(request.resume_text)} chars, {request.num_matches} matches")
+        result = orchestrator.rag_match_only(request.resume_text, request.num_matches)
+        logger.info("RAG matching completed successfully")
+        return result
     except Exception as e:
+        logger.error(f"RAG matching failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"RAG matching failed: {str(e)}")
 
 
@@ -210,3 +275,100 @@ async def full_analysis(request: FullAnalysisRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Full analysis failed: {str(e)}")
+
+
+@router.post("/match-jobs-comprehensive")
+async def match_jobs_comprehensive(request: ComprehensiveJobMatchRequest):
+    """
+    Comprehensive job matching using RAG + Web Search + LLM Scoring.
+
+    Combines:
+    - RAG (Pinecone vector DB) for semantic job matching
+    - Web Search (Google/DuckDuckGo) for broader job discovery
+    - LLM-powered scoring for intelligent ranking
+
+    Returns jobs ranked by match score (0-100).
+    """
+    if len(request.resume_text.strip()) < 50:
+        raise HTTPException(status_code=400, detail="Resume text too short.")
+    try:
+        logger.info("Comprehensive job matching endpoint called")
+        result = orchestrator.match_jobs_comprehensive(
+            resume_text=request.resume_text,
+            job_query=request.job_query,
+            num_rag_matches=request.num_rag_matches,
+            num_web_matches=request.num_web_matches,
+            include_web_search=request.include_web_search,
+        )
+        if not result.get("success"):
+            raise HTTPException(status_code=422, detail=result.get("error", "Job matching failed."))
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Comprehensive job matching failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Job matching failed: {str(e)}")
+
+
+@router.post("/match-jobs-by-skills")
+async def match_jobs_by_skills(request: SkillBasedJobMatchRequest):
+    """
+    Match jobs based on specific target skills.
+
+    Use this to discover jobs that require certain skills.
+    Useful for career pivots or skill-based job exploration.
+    """
+    if len(request.resume_text.strip()) < 50:
+        raise HTTPException(status_code=400, detail="Resume text too short.")
+    if not request.target_skills or len(request.target_skills) == 0:
+        raise HTTPException(status_code=400, detail="At least one skill must be provided.")
+    try:
+        logger.info(f"Skill-based job matching for skills: {request.target_skills}")
+        result = orchestrator.match_jobs_by_skills(
+            resume_text=request.resume_text,
+            target_skills=request.target_skills,
+            num_rag_matches=request.num_rag_matches,
+            num_web_matches=request.num_web_matches,
+        )
+        if not result.get("success"):
+            raise HTTPException(status_code=422, detail=result.get("error", "Job matching failed."))
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Skill-based job matching failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Job matching failed: {str(e)}")
+
+
+@router.post("/match-jobs-by-role")
+async def match_jobs_by_role(request: RoleBasedJobMatchRequest):
+    """
+    Match jobs based on a specific target role.
+
+    Examples:
+    - "Senior Software Engineer"
+    - "Data Scientist"
+    - "Product Manager"
+
+    Searches for jobs matching this role across RAG + Web Search.
+    """
+    if len(request.resume_text.strip()) < 50:
+        raise HTTPException(status_code=400, detail="Resume text too short.")
+    if len(request.target_role.strip()) < 2:
+        raise HTTPException(status_code=400, detail="Target role must be at least 2 characters.")
+    try:
+        logger.info(f"Role-based job matching for role: {request.target_role}")
+        result = orchestrator.match_jobs_by_role(
+            resume_text=request.resume_text,
+            target_role=request.target_role,
+            num_rag_matches=request.num_rag_matches,
+            num_web_matches=request.num_web_matches,
+        )
+        if not result.get("success"):
+            raise HTTPException(status_code=422, detail=result.get("error", "Job matching failed."))
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Role-based job matching failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Job matching failed: {str(e)}")
