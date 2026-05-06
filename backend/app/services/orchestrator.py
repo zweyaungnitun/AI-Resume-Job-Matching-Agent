@@ -2,6 +2,7 @@
 
 import logging
 import asyncio
+import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
@@ -112,13 +113,25 @@ class MultiAgentOrchestrator:
 
     def review_cv_only(self, resume_text: str) -> dict:
         """Run only the CV review agent - efficient, no redundant skill extraction"""
-        logger.info(f"Starting CV review for {len(resume_text)} chars")
+        logger.info(f"[ORCHESTRATOR_CV_REVIEW] Starting CV review for {len(resume_text)} chars")
+        start_time = time.time()
+
         try:
+            logger.debug(f"[ORCHESTRATOR_CV_REVIEW] Calling cv_reviewer.review()")
             cv_review = self.cv_reviewer.review(resume_text)
-            logger.info("CV review completed successfully")
-            return {"cv_review": cv_review}
+            logger.debug(f"[ORCHESTRATOR_CV_REVIEW] CV review returned | type={type(cv_review)} | keys={list(cv_review.keys()) if isinstance(cv_review, dict) else 'N/A'}")
+
+            result = {"cv_review": cv_review}
+            elapsed = time.time() - start_time
+
+            logger.info(f"[ORCHESTRATOR_CV_REVIEW] CV review completed successfully | overall_score={cv_review.get('overall_score')} | time={elapsed:.2f}s")
+            logger.debug(f"[ORCHESTRATOR_CV_REVIEW] Returning result with keys: {list(result.keys())}")
+
+            return result
+
         except Exception as e:
-            logger.error(f"CV review failed: {str(e)}", exc_info=True)
+            elapsed = time.time() - start_time
+            logger.error(f"[ORCHESTRATOR_CV_REVIEW] CV review failed after {elapsed:.2f}s | error={type(e).__name__}: {str(e)}", exc_info=True)
             raise
 
     def rag_match_only(self, resume_text: str, num_matches: int = 5) -> dict:

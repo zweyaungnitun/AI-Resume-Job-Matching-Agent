@@ -1,7 +1,7 @@
 """Resume parsing and extraction service"""
 
 import json
-from pypdf import PdfReader
+import pdfplumber
 from docx import Document
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
@@ -21,14 +21,18 @@ class ResumeParser:
 
     def parse_pdf(self, file_path: str) -> dict:
         """Parse PDF resume and extract text"""
-        reader = PdfReader(file_path)
         text = ""
-        for page in reader.pages:
-            text += page.extract_text() + "\n"
+        page_count = 0
+        with pdfplumber.open(file_path) as pdf:
+            page_count = len(pdf.pages)
+            for page in pdf.pages:
+                extracted = page.extract_text()
+                if extracted:
+                    text += extracted + "\n"
 
         return {
             "raw_text": text.strip(),
-            "pages": len(reader.pages),
+            "pages": page_count,
             "file_type": "pdf"
         }
 
@@ -62,16 +66,8 @@ Response (JSON array only):"""
         response = chain.invoke({"resume_text": text})
 
         try:
-            # Extract JSON from the response
-            content = response.content.strip()
-            if content.startswith("```json"):
-                content = content[7:-3]
-            elif content.startswith("```"):
-                content = content[3:-3]
-
-            skills = json.loads(content)
-            return skills if isinstance(skills, list) else []
-        except (json.JSONDecodeError, AttributeError):
+            return self._clean_json_response(response.content)
+        except Exception:
             return []
 
     def extract_experience(self, text: str) -> list[dict]:
@@ -92,13 +88,35 @@ Response (JSON array only):"""
         response = chain.invoke({"resume_text": text})
 
         try:
-            content = response.content.strip()
-            if content.startswith("```json"):
-                content = content[7:-3]
-            elif content.startswith("```"):
-                content = content[3:-3]
+            return self._clean_json_response(response.content)
+        except Exception:
+            return []
 
-            experience = json.loads(content)
-            return experience if isinstance(experience, list) else []
-        except (json.JSONDecodeError, AttributeError):
+    def _clean_json_response(self, content: str):
+        """Extract and parse JSON from LLM response"""
+        if not content:
+            return []
+        
+        content = content.strip()
+        if content.startswith("```json"):
+            content = content[7:-3]
+        elif content.startswith("```"):
+            content = content[3:-3]
+        
+        # Remove any lingering markdown or markers
+        content = content.strip()
+        
+        try:
+            data = json.loads(content)
+            return data if isinstance(data, list) else []
+        except json.JSONDecodeError:
+            # Fallback: try to find the first [ and last ]
+            start = content.find("[")
+            end = content.rfind("]")
+            if start != -1 and end != -1:
+                try:
+                    data = json.loads(content[start:end+1])
+                    return data if isinstance(data, list) else []
+                except json.JSONDecodeError:
+                    pass
             return []

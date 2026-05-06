@@ -1,8 +1,10 @@
 import os
 import logging
 import traceback
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from pydantic import BaseModel
+
+from app.dependencies.auth import get_current_user
 
 from app.services.resume_parser import ResumeParser
 
@@ -39,23 +41,29 @@ class ExtractedDataResponse(BaseModel):
 @router.post("/upload", response_model=ParsedResumeResponse)
 async def upload_resume(file: UploadFile = File(...)):
     """Upload and extract text from resume (PDF or DOCX) - no AI processing"""
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="No filename provided")
-
-    # Validate file type
-    file_ext = os.path.splitext(file.filename)[1].lower()
-    if file_ext not in [".pdf", ".docx", ".doc"]:
-        raise HTTPException(
-            status_code=400,
-            detail="Only PDF and DOCX files are supported"
-        )
-
-    # Save file temporarily
-    file_path = f"uploads/{file.filename}"
     try:
+        logging.info(f"[RESUME] Upload request received - file: {file.filename}, content_type: {file.content_type}, size: {file.size}")
+
+        if not file.filename:
+            logging.error("[RESUME] No filename provided")
+            raise HTTPException(status_code=400, detail="No filename provided")
+
+        # Validate file type
+        file_ext = os.path.splitext(file.filename)[1].lower()
+        if file_ext not in [".pdf", ".docx", ".doc"]:
+            logging.error(f"[RESUME] Invalid file type: {file_ext}")
+            raise HTTPException(
+                status_code=400,
+                detail="Only PDF and DOCX files are supported"
+            )
+
+        # Save file temporarily
+        file_path = f"uploads/{file.filename}"
         with open(file_path, "wb") as f:
             content = await file.read()
             f.write(content)
+
+        logging.info(f"[RESUME] File saved to {file_path}")
 
         # Parse based on file type (text extraction only, no AI)
         if file_ext == ".pdf":
@@ -63,20 +71,26 @@ async def upload_resume(file: UploadFile = File(...)):
         else:  # .docx or .doc
             parsed = parser.parse_docx(file_path)
 
+        logging.info(f"[RESUME] File parsed successfully, text length: {len(parsed['raw_text'])}")
+
         return ParsedResumeResponse(
             raw_text=parsed["raw_text"],
             file_type=parsed["file_type"],
             filename=file.filename
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logging.error(f"Error processing resume upload: {str(e)}")
+        logging.error(f"[RESUME] Error processing resume upload: {str(e)}")
         logging.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
     finally:
         # Clean up temporary file
+        file_path = f"uploads/{file.filename}"
         if os.path.exists(file_path):
             os.remove(file_path)
+            logging.info(f"[RESUME] Cleaned up temporary file")
 
 
 @router.post("/extract", response_model=ExtractedDataResponse)

@@ -1,11 +1,12 @@
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator, ConfigDict
 from typing import Optional, Literal
 
 from app.services.agent_service import MatchingAgent
 from app.services.orchestrator import MultiAgentOrchestrator
+from app.dependencies.auth import get_current_user
 from app.logger import get_logger
 
 logger = get_logger(__name__)
@@ -65,6 +66,8 @@ class CVReviewRequest(BaseModel):
 
 
 class CVReviewResponse(BaseModel):
+    model_config = ConfigDict(extra='allow')  # Allow extra fields from API responses
+
     overall_score: int
     ats_score: int
     structure_score: int
@@ -79,13 +82,6 @@ class CVReviewResponse(BaseModel):
     writing_quality: dict
     overall_assessment: str
     immediate_fixes: list[str]
-
-    # Accept both 'immediate_fixes' and 'fixes' for backward compatibility
-    @classmethod
-    def validate(cls, value):
-        if 'fixes' in value and 'immediate_fixes' not in value:
-            value['immediate_fixes'] = value['fixes']
-        return value
 
 
 class FullAnalysisRequest(BaseModel):
@@ -129,7 +125,7 @@ class RoleBasedJobMatchRequest(BaseModel):
 # ── Legacy endpoints (unchanged) ──────────────────────────────────────────────
 
 @router.post("/match", response_model=MatchResponse)
-async def match_jobs(request: MatchRequest):
+async def match_jobs(request: MatchRequest, user=Depends(get_current_user)):
     """Find matching jobs for a given resume using RAG."""
     if len(request.resume_text.strip()) < 10:
         raise HTTPException(status_code=400, detail="Resume text must be at least 10 characters long")
@@ -158,7 +154,7 @@ async def match_jobs(request: MatchRequest):
 
 
 @router.post("/generate-cover-letter", response_model=CoverLetterResponse)
-async def generate_cover_letter(request: CoverLetterRequest):
+async def generate_cover_letter(request: CoverLetterRequest, user=Depends(get_current_user)):
     """Generate a tailored cover letter for a specific job."""
     if len(request.resume_text.strip()) < 10:
         raise HTTPException(status_code=400, detail="Resume text must be at least 10 characters long")
@@ -172,7 +168,7 @@ async def generate_cover_letter(request: CoverLetterRequest):
 
 
 @router.post("/analyze-gaps", response_model=GapAnalysisResponse)
-async def analyze_gaps(request: GapAnalysisRequest):
+async def analyze_gaps(request: GapAnalysisRequest, user=Depends(get_current_user)):
     """Analyze skill and experience gaps between resume and job."""
     if len(request.resume_text.strip()) < 10:
         raise HTTPException(status_code=400, detail="Resume text must be at least 10 characters long")
@@ -188,7 +184,7 @@ async def analyze_gaps(request: GapAnalysisRequest):
 # ── New multi-agent endpoints ──────────────────────────────────────────────────
 
 @router.post("/review-cv")
-async def review_cv(request: CVReviewRequest):
+async def review_cv(request: CVReviewRequest, user=Depends(get_current_user)):
     """
     Agent 1: Full CV quality review.
     Returns ATS score, structure score, content score, strengths, weaknesses, and immediate fixes.
@@ -196,15 +192,27 @@ async def review_cv(request: CVReviewRequest):
     if len(request.resume_text.strip()) < 50:
         raise HTTPException(status_code=400, detail="Resume text too short to review.")
     try:
-        logger.info(f"CV review requested: {len(request.resume_text)} chars")
+        logger.info(f"[ROUTE_CV_REVIEW] CV review endpoint called | resume_len={len(request.resume_text)} chars")
+
         result = orchestrator.review_cv_only(request.resume_text)
-        logger.info("CV review completed successfully")
+        logger.info(f"[ROUTE_CV_REVIEW] Orchestrator returned result | keys={list(result.keys())}")
+        logger.debug(f"[ROUTE_CV_REVIEW] Result structure: {result}")
+
         # Flatten if result is nested under 'cv_review'
         if isinstance(result, dict) and 'cv_review' in result:
+            logger.debug(f"[ROUTE_CV_REVIEW] Flattening nested 'cv_review' structure")
             result = result['cv_review']
-        return CVReviewResponse(**result)
+            logger.debug(f"[ROUTE_CV_REVIEW] Flattened result keys: {list(result.keys())}")
+
+        logger.debug(f"[ROUTE_CV_REVIEW] Creating CVReviewResponse with keys: {list(result.keys())}")
+        response = CVReviewResponse(**result)
+        logger.debug(f"[ROUTE_CV_REVIEW] Response object created successfully")
+        logger.info(f"[ROUTE_CV_REVIEW] CV review completed | overall_score={response.overall_score}")
+
+        return response
+
     except Exception as e:
-        logger.error(f"CV review failed: {e}")
+        logger.error(f"[ROUTE_CV_REVIEW] CV review failed: {type(e).__name__}: {str(e)}", exc_info=True)
         if 'User location is not supported' in str(e):
             return JSONResponse(status_code=400, content={
                 "error": "Your region is not supported for this AI service. Please try again from a supported location."
@@ -213,7 +221,7 @@ async def review_cv(request: CVReviewRequest):
 
 
 @router.post("/rag-match")
-async def rag_match(request: RAGMatchRequest):
+async def rag_match(request: RAGMatchRequest, user=Depends(get_current_user)):
     """
     Agent 2: RAG-based job matching from the vector database.
     Returns semantically matched jobs with gap analysis.
@@ -231,7 +239,7 @@ async def rag_match(request: RAGMatchRequest):
 
 
 @router.post("/search-jobs")
-async def search_jobs(request: JobSearchRequest):
+async def search_jobs(request: JobSearchRequest, user=Depends(get_current_user)):
     """
     Search the web for jobs matching a query and analyze the top results.
     """
@@ -244,7 +252,7 @@ async def search_jobs(request: JobSearchRequest):
 
 
 @router.post("/full-analysis")
-async def full_analysis(request: FullAnalysisRequest):
+async def full_analysis(request: FullAnalysisRequest, user=Depends(get_current_user)):
     """
     Full multi-agent pipeline:
     1. CV Review
@@ -278,7 +286,7 @@ async def full_analysis(request: FullAnalysisRequest):
 
 
 @router.post("/match-jobs-comprehensive")
-async def match_jobs_comprehensive(request: ComprehensiveJobMatchRequest):
+async def match_jobs_comprehensive(request: ComprehensiveJobMatchRequest, user=Depends(get_current_user)):
     """
     Comprehensive job matching using RAG + Web Search + LLM Scoring.
 
@@ -311,7 +319,7 @@ async def match_jobs_comprehensive(request: ComprehensiveJobMatchRequest):
 
 
 @router.post("/match-jobs-by-skills")
-async def match_jobs_by_skills(request: SkillBasedJobMatchRequest):
+async def match_jobs_by_skills(request: SkillBasedJobMatchRequest, user=Depends(get_current_user)):
     """
     Match jobs based on specific target skills.
 
@@ -341,7 +349,7 @@ async def match_jobs_by_skills(request: SkillBasedJobMatchRequest):
 
 
 @router.post("/match-jobs-by-role")
-async def match_jobs_by_role(request: RoleBasedJobMatchRequest):
+async def match_jobs_by_role(request: RoleBasedJobMatchRequest, user=Depends(get_current_user)):
     """
     Match jobs based on a specific target role.
 
