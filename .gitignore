@@ -52,3 +52,16 @@ uploads/
 *.sqlite
 .cache/
 logs/
+*.log
+
+# Google OAuth credentials (NEVER COMMIT THESE!)
+client_secret.json
+client_secret_*.json
+credentials.json
+
+# Backend environment
+backend/.env
+backend/.env.local
+
+# Frontend environment
+frontend/.env.local

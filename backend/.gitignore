@@ -1,0 +1,25 @@
+# Credentials and secrets - NEVER COMMIT
+client_secret.json
+client_secret_*.json
+credentials.json
+.env
+.env.local
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+
+# Uploads
+uploads/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.Python
+venv/
+env/
