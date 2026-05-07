@@ -80,8 +80,9 @@ if oauth_creds:
     settings.GOOGLE_CLIENT_ID = oauth_creds["client_id"]
     settings.GOOGLE_CLIENT_SECRET = oauth_creds["client_secret"]
 elif not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
-    raise RuntimeError(
-        "Google OAuth credentials not found! Please either:\n"
-        "1. Place 'client_secret.json' in the backend directory, OR\n"
-        "2. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env"
+    print(
+        "⚠ Google OAuth credentials not configured. "
+        "Google login will be unavailable — password auth still works.\n"
+        "To enable Google login, set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env "
+        "or place 'client_secret.json' in the backend directory."
     )

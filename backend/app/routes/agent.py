@@ -98,6 +98,8 @@ class JobSearchRequest(BaseModel):
 class RAGMatchRequest(BaseModel):
     resume_text: str
     num_matches: int = 5
+    job_query: Optional[str] = None
+    include_web_search: bool = False
 
 
 class ComprehensiveJobMatchRequest(BaseModel):
@@ -229,8 +231,22 @@ async def rag_match(request: RAGMatchRequest, user=Depends(get_current_user)):
     if len(request.resume_text.strip()) < 50:
         raise HTTPException(status_code=400, detail="Resume text too short.")
     try:
-        logger.info(f"RAG matching requested: {len(request.resume_text)} chars, {request.num_matches} matches")
-        result = orchestrator.rag_match_only(request.resume_text, request.num_matches)
+        logger.info(
+            "RAG matching requested: resume=%s chars, rag=%s, web=%s, query=%s",
+            len(request.resume_text),
+            request.num_matches,
+            request.include_web_search,
+            bool(request.job_query and request.job_query.strip()),
+        )
+        result = orchestrator.match_jobs_comprehensive(
+            resume_text=request.resume_text,
+            job_query=request.job_query,
+            num_rag_matches=request.num_matches,
+            num_web_matches=request.num_matches,
+            include_web_search=request.include_web_search,
+        )
+        if not result.get("success"):
+            raise HTTPException(status_code=422, detail=result.get("error", "RAG matching failed."))
         logger.info("RAG matching completed successfully")
         return result
     except Exception as e:

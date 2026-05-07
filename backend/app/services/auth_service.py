@@ -77,11 +77,12 @@ class AuthService:
             raise ValueError("Invalid ID token")
 
     @staticmethod
-    def create_access_token(email: str, name: Optional[str] = None) -> str:
+    def create_access_token(email: str, name: Optional[str] = None, auth_method: str = "password") -> str:
         """Create JWT access token"""
         payload = {
             "email": email,
             "name": name,
+            "auth_method": auth_method,
             "iat": datetime.utcnow(),
             "exp": datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
             "type": "access",
