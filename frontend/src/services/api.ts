@@ -7,10 +7,76 @@ import { logger } from '../lib/logger';
 
 const API_BASE_URL = `${window.location.origin}/api`;
 
-interface ApiResponse<T> {
+// ──────────────────────────────────────────────────────────────────────
+// Auth API
+// ──────────────────────────────────────────────────────────────────────
+
+export async function apiLoginWithPassword(email: string, password: string) {
+  const response = await fetch(`${API_BASE_URL}/auth/login-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || 'Invalid email or password');
+  }
+  return response.json() as Promise<{ access_token: string; refresh_token: string; expires_in: number }>;
+}
+
+export async function apiSignup(email: string, password: string, name?: string) {
+  const response = await fetch(`${API_BASE_URL}/auth/signup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, name }),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || 'Signup failed');
+  }
+  return response.json() as Promise<{ access_token: string; refresh_token: string; expires_in: number }>;
+}
+
+export async function apiRefreshToken(refreshToken: string) {
+  const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+  if (!response.ok) throw new Error('Session expired. Please log in again.');
+  return response.json() as Promise<{ access_token: string; refresh_token: string }>;
+}
+
+export async function apiAuthLogout(token: string) {
+  await fetch(`${API_BASE_URL}/auth/logout`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  }).catch(() => {});
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+interface ApiResponse<_T = unknown> {
   success?: boolean;
   error?: string;
   [key: string]: any;
+}
+
+// Helper function to make authenticated fetch requests
+async function authedFetch(url: string, options: RequestInit = {}) {
+  const token = localStorage.getItem('auth_token');
+  if (!token) {
+    throw new Error('No authentication token found');
+  }
+
+  const headers: HeadersInit = {
+    ...(options.headers instanceof Headers ? Object.fromEntries(options.headers) : options.headers),
+    'Authorization': `Bearer ${token}`,
+  };
+
+  return fetch(url, {
+    ...options,
+    headers,
+  });
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -19,17 +85,31 @@ interface ApiResponse<T> {
 
 export async function uploadResume(file: File): Promise<ApiResponse<any>> {
   logger.info('Uploading resume', { fileName: file.name });
+  const token = localStorage.getItem('auth_token');
+  console.log('Auth token present:', !!token);
+
+  if (!token) {
+    throw new Error('No authentication token found. Please login first.');
+  }
+
   const formData = new FormData();
   formData.append("file", file);
 
+  console.log('Sending upload request with token:', token.substring(0, 20) + '...');
+
   const response = await fetch(`${API_BASE_URL}/resume/upload`, {
     method: "POST",
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
     body: formData,
   });
 
   if (!response.ok) {
     logger.error('Upload failed', response.statusText);
-    throw new Error(`Upload failed: ${response.statusText}`);
+    const error = await response.json().catch(() => ({}));
+    console.log('Upload error details:', error);
+    throw new Error(error.detail?.[0]?.msg || error.detail || `Upload failed: ${response.statusText}`);
   }
   const data = await response.json();
   logger.debug('Upload response', data);
@@ -47,7 +127,7 @@ export async function extractResumeData(
   filename: string
 ): Promise<ApiResponse<any>> {
   logger.info('Extracting resume data', { fileType, filename });
-  const response = await fetch(`${API_BASE_URL}/resume/extract`, {
+  const response = await authedFetch(`${API_BASE_URL}/resume/extract`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -72,7 +152,7 @@ export async function extractResumeData(
 
 export async function reviewCV(resumeText: string): Promise<ApiResponse<any>> {
   logger.info('Reviewing CV');
-  const response = await fetch(`${API_BASE_URL}/agent/review-cv`, {
+  const response = await authedFetch(`${API_BASE_URL}/agent/review-cv`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ resume_text: resumeText }),
@@ -94,12 +174,22 @@ export async function reviewCV(resumeText: string): Promise<ApiResponse<any>> {
   return data;
 }
 
-export async function getRAGMatches(resumeText: string, numMatches: number = 5): Promise<ApiResponse<any>> {
-  logger.info('Getting RAG matches', { numMatches });
-  const response = await fetch(`${API_BASE_URL}/agent/rag-match`, {
+export async function getRAGMatches(
+  resumeText: string,
+  numMatches: number = 5,
+  jobQuery?: string,
+  includeWebSearch: boolean = false
+): Promise<ApiResponse<any>> {
+  logger.info('Getting RAG matches', { numMatches, includeWebSearch });
+  const response = await authedFetch(`${API_BASE_URL}/agent/rag-match`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ resume_text: resumeText, num_matches: numMatches }),
+    body: JSON.stringify({
+      resume_text: resumeText,
+      num_matches: numMatches,
+      job_query: jobQuery?.trim() ? jobQuery.trim() : null,
+      include_web_search: includeWebSearch,
+    }),
   });
 
   if (!response.ok) {
@@ -112,7 +202,7 @@ export async function getRAGMatches(resumeText: string, numMatches: number = 5):
 }
 
 export async function searchJobs(query: string): Promise<ApiResponse<any>> {
-  const response = await fetch(`${API_BASE_URL}/agent/search-jobs`, {
+  const response = await authedFetch(`${API_BASE_URL}/agent/search-jobs`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query }),
@@ -128,7 +218,7 @@ export async function fullAnalysis(
   jobSourceValue: string,
   numRagMatches: number = 5
 ): Promise<ApiResponse<any>> {
-  const response = await fetch(`${API_BASE_URL}/agent/full-analysis`, {
+  const response = await authedFetch(`${API_BASE_URL}/agent/full-analysis`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -151,7 +241,7 @@ export async function fullAnalysis(
 // ──────────────────────────────────────────────────────────────────────
 
 export async function matchJobs(resumeText: string, numMatches: number = 5): Promise<ApiResponse<any>> {
-  const response = await fetch(`${API_BASE_URL}/agent/match`, {
+  const response = await authedFetch(`${API_BASE_URL}/agent/match`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ resume_text: resumeText, num_matches: numMatches }),
@@ -162,7 +252,7 @@ export async function matchJobs(resumeText: string, numMatches: number = 5): Pro
 }
 
 export async function generateCoverLetter(resumeText: string, jobDescription: string): Promise<ApiResponse<any>> {
-  const response = await fetch(`${API_BASE_URL}/agent/generate-cover-letter`, {
+  const response = await authedFetch(`${API_BASE_URL}/agent/generate-cover-letter`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ resume_text: resumeText, job_description: jobDescription }),
@@ -173,7 +263,7 @@ export async function generateCoverLetter(resumeText: string, jobDescription: st
 }
 
 export async function analyzeGaps(resumeText: string, jobDescription: string): Promise<ApiResponse<any>> {
-  const response = await fetch(`${API_BASE_URL}/agent/analyze-gaps`, {
+  const response = await authedFetch(`${API_BASE_URL}/agent/analyze-gaps`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ resume_text: resumeText, job_description: jobDescription }),
