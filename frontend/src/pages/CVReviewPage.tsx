@@ -1,50 +1,34 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWorkflow } from '../context/WorkflowContext';
-import { reviewCV } from '../services/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Progress } from '../components/ui/progress';
 import { AlertCircle, CheckCircle, AlertTriangle, Zap, ArrowRight, ChevronLeft } from 'lucide-react';
+import { scoreToColor } from '../lib/utils';
+import { LoadingSpinner } from '../components/ui/loading-spinner';
 
 export const CVReviewPage: React.FC = () => {
   const navigate = useNavigate();
-  const { cvText, cvReview, isLoadingReview, errorReview, setCVReview, setIsLoadingReview, setErrorReview } = useWorkflow();
+  const { cvText, cvReview, isLoadingReview, errorReview } = useWorkflow();
 
   useEffect(() => {
     if (!cvText) {
       navigate('/cv-input');
       return;
     }
-
-    if (!cvReview && !isLoadingReview && !errorReview) {
-      const performReview = async () => {
-        setIsLoadingReview(true);
-        try {
-          const result = await reviewCV(cvText);
-          setCVReview(result.cv_review || result);
-        } catch (err: any) {
-          setErrorReview(err.message || 'Failed to review CV');
-        } finally {
-          setIsLoadingReview(false);
-        }
-      };
-      performReview();
-    }
-  }, [cvText, cvReview, isLoadingReview, errorReview, navigate, setCVReview, setIsLoadingReview, setErrorReview]);
+  }, [cvText, navigate]);
 
   if (!cvText) return null;
 
   if (isLoadingReview) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto" />
-          <p className="text-muted-foreground">Analyzing your CV...</p>
-          <p className="text-sm text-muted-foreground">This may take a moment</p>
-        </div>
-      </div>
+      <LoadingSpinner
+        message="Analyzing your CV..."
+        subMessage="This may take a moment"
+        size="md"
+      />
     );
   }
 
@@ -94,47 +78,50 @@ export const CVReviewPage: React.FC = () => {
         <div className="flex items-center gap-2 mb-2">
           <Badge>Step 2 of 4</Badge>
         </div>
-        <h1 className="text-3xl font-bold text-foreground">CV Quality Review</h1>
+        <h1 className="text-3xl font-bold text-foreground">Resume Quality Snapshot</h1>
         <p className="mt-2 text-muted-foreground">
-          Detailed analysis of your resume and recommendations for improvement
+          Review strengths, gaps, and quick wins before matching to jobs.
         </p>
       </div>
 
       {/* Overall Score Card */}
-      <Card className="border-2">
+      <Card className={`border-2 shadow-xl ${scoreToColor(overallScore).border} ${scoreToColor(overallScore).bg}`}>
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between">
             <div>
               <CardTitle>Overall Score</CardTitle>
               <CardDescription>Your CV quality assessment</CardDescription>
             </div>
-            <div className={`text-4xl font-bold ${overallScore >= 80 ? 'text-green-600' : overallScore >= 60 ? 'text-blue-600' : 'text-amber-600'}`}>
+            <div className={`text-4xl font-bold ${scoreToColor(overallScore).text}`}>
               {overallScore}
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Progress value={overallScore} className="h-3" />
+          <Progress value={overallScore} className="h-3 transition-all duration-700" />
 
           {/* Score Breakdown */}
-          <div className="grid grid-cols-3 gap-4 pt-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
             {[
-              { label: 'ATS Score', value: cvReview.ats_score || 0, color: 'bg-red-100 text-red-700' },
-              { label: 'Structure', value: cvReview.structure_score || 0, color: 'bg-amber-100 text-amber-700' },
-              { label: 'Content', value: cvReview.content_score || 0, color: 'bg-green-100 text-green-700' },
-            ].map((item) => (
-              <div key={item.label} className={`p-3 rounded-lg ${item.color} text-center`}>
-                <p className="text-sm font-semibold">{item.value}</p>
-                <p className="text-xs opacity-80">{item.label}</p>
-              </div>
-            ))}
+              { label: 'ATS Score', value: cvReview.ats_score || 0 },
+              { label: 'Structure', value: cvReview.structure_score || 0 },
+              { label: 'Content', value: cvReview.content_score || 0 },
+            ].map((item) => {
+              const colors = scoreToColor(item.value);
+              return (
+                <div key={item.label} className={`p-3 rounded-lg ${colors.bg} ${colors.text} text-center`}>
+                  <p className="text-sm font-semibold">{item.value}</p>
+                  <p className="text-xs opacity-80">{item.label}</p>
+                </div>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
 
       {/* Overall Assessment */}
       {cvReview.overall_assessment && (
-        <Card className="border-blue-200 bg-blue-50">
+        <Card className="border-blue-200/80 bg-blue-50/80">
           <CardContent className="pt-6">
             <p className="text-sm text-foreground leading-relaxed">{cvReview.overall_assessment}</p>
           </CardContent>
@@ -187,7 +174,7 @@ export const CVReviewPage: React.FC = () => {
 
       {/* Quick Wins */}
       {cvReview.immediate_fixes && cvReview.immediate_fixes.length > 0 && (
-        <Card className="border-green-200 bg-green-50">
+        <Card className="border-green-200/80 bg-green-50/80">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <Zap className="h-5 w-5 text-green-600" />

@@ -37,7 +37,7 @@ function Home() {
     {
       icon: Layers,
       title: 'Similar Jobs',
-      description: 'Find semantically similar jobs from our vector database using RAG'
+      description: 'Discover highly relevant roles from our smart semantic search engine'
     }
   ]
 
@@ -49,8 +49,8 @@ function Home() {
     },
     {
       icon: Lightbulb,
-      title: 'RAG + Vector Database',
-      description: 'Advanced semantic search to find similar jobs and match opportunities beyond keywords'
+      title: 'Smart Semantic Discovery',
+      description: 'Go beyond keywords and uncover better-fit opportunities with context-aware matching'
     },
     {
       icon: CheckCircle,
@@ -90,14 +90,14 @@ function Home() {
   return (
     <div className="space-y-16">
       {/* Hero Section */}
-      <section className="relative overflow-hidden rounded-lg border border-border bg-gradient-to-br from-primary/5 via-background to-accent/5 px-6 py-20 sm:px-12 sm:py-24">
+      <section className="relative overflow-hidden rounded-3xl border border-white/70 bg-gradient-to-br from-primary/10 via-white/75 to-accent/15 px-6 py-20 shadow-[0_20px_50px_-30px_rgb(15_23_42_/_0.25)] sm:px-12 sm:py-24">
         <div className="max-w-3xl">
           <Badge variant="secondary" className="mb-4">AI-Powered Career Matching</Badge>
           <h1 className="mb-4 text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
             Find Your Perfect Job Match
           </h1>
           <p className="mb-8 text-xl text-muted-foreground">
-            Your intelligent career companion powered by multi-agent AI and advanced retrieval-augmented generation
+            Your intelligent career companion powered by multi-agent AI and smart semantic discovery
           </p>
           <div className="flex gap-4">
             <Link to="/cv-input">
@@ -152,7 +152,7 @@ function Home() {
           {features.map((feature) => {
             const Icon = feature.icon
             return (
-              <Card key={feature.title} className="flex flex-col">
+              <Card key={feature.title} className="flex flex-col transition-transform hover:-translate-y-1">
                 <CardHeader>
                   <div className="mb-2 inline-flex rounded-lg bg-primary/10 p-3 w-fit">
                     <Icon className="h-6 w-6 text-primary" />
@@ -178,7 +178,7 @@ function Home() {
           {benefits.map((benefit) => {
             const Icon = benefit.icon
             return (
-              <Card key={benefit.title}>
+              <Card key={benefit.title} className="transition-transform hover:-translate-y-1">
                 <CardHeader>
                   <div className="flex items-start gap-4">
                     <div className="rounded-lg bg-primary/10 p-2">
@@ -199,7 +199,7 @@ function Home() {
       </section>
 
       {/* CTA Section */}
-      <section className="overflow-hidden rounded-lg border border-border bg-gradient-to-r from-primary/10 to-accent/10 px-6 py-16 sm:px-12">
+      <section className="overflow-hidden rounded-3xl border border-white/70 bg-gradient-to-r from-primary/15 to-accent/20 px-6 py-16 shadow-[0_20px_50px_-30px_rgb(15_23_42_/_0.25)] sm:px-12">
         <div className="max-w-2xl text-center">
           <h2 className="text-3xl font-bold text-foreground">Ready to Find Your Perfect Job?</h2>
           <p className="mt-4 text-lg text-muted-foreground">

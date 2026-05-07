@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWorkflow } from '../context/WorkflowContext';
-import { fullAnalysis, searchJobs } from '../services/api';
+import { fullAnalysis } from '../services/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
 import { AlertCircle, Link as LinkIcon, Lightbulb, ArrowRight } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { SegmentedTabs } from '../components/ui/segmented-tabs';
 
 export const JobInputPage: React.FC = () => {
   const navigate = useNavigate();
@@ -98,54 +98,20 @@ export const JobInputPage: React.FC = () => {
         </div>
       )}
 
-      {/* Input Method Tabs */}
-      <div className="flex gap-2 rounded-lg border border-border bg-secondary/30 p-1">
-        <button
-          onClick={() => {
-            setJobInputType('url');
-            setError(null);
-          }}
-          className={cn(
-            'flex-1 rounded-md px-4 py-2 font-medium text-sm transition-colors',
-            jobInputType === 'url'
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
-          )}
-        >
-          <LinkIcon className="inline h-4 w-4 mr-2" />
-          Job URL
-        </button>
-        <button
-          onClick={() => {
-            setJobInputType('text');
-            setError(null);
-          }}
-          className={cn(
-            'flex-1 rounded-md px-4 py-2 font-medium text-sm transition-colors',
-            jobInputType === 'text'
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
-          )}
-        >
-          Paste Description
-        </button>
-        <button
-          onClick={() => {
-            setJobInputType('search');
-            setError(null);
-          }}
-          className={cn(
-            'flex-1 rounded-md px-4 py-2 font-medium text-sm transition-colors',
-            jobInputType === 'search'
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
-          )}
-        >
-          Search
-        </button>
-      </div>
+      <SegmentedTabs
+        tabs={[
+          { id: 'url', label: 'Job URL', icon: <LinkIcon className="h-4 w-4" /> },
+          { id: 'text', label: 'Paste Description' },
+          { id: 'search', label: 'Search Jobs' },
+        ]}
+        activeTab={jobInputType}
+        onTabChange={(type) => {
+          setJobInputType(type as 'url' | 'text' | 'search');
+          setError(null);
+        }}
+      />
 
-      <Card>
+      <Card className="border-white/80 shadow-xl">
         <CardContent className="pt-6 space-y-4">
           {jobInputType === 'url' && (
             <div className="space-y-2">
@@ -210,17 +176,14 @@ export const JobInputPage: React.FC = () => {
                 Analyzing...
               </>
             ) : (
-              <>
-                Start Full Analysis
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </>
+              <>Get Personalized Insights<ArrowRight className="ml-2 h-4 w-4" /></>
             )}
           </Button>
         </CardContent>
       </Card>
 
       <div className="grid gap-6 sm:grid-cols-2">
-        <Card className="bg-secondary/50">
+        <Card className="bg-gradient-to-br from-secondary/60 to-background">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <Lightbulb className="h-5 w-5" />
@@ -243,7 +206,7 @@ export const JobInputPage: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card className="bg-secondary/50">
+        <Card className="bg-gradient-to-br from-secondary/60 to-background">
           <CardHeader>
             <CardTitle className="text-lg">What Happens Next</CardTitle>
           </CardHeader>

@@ -5,8 +5,10 @@ import { useWorkflow } from '../context/WorkflowContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
-import { Upload, FileText, AlertCircle, Lightbulb, ArrowRight } from 'lucide-react';
+import { Upload, FileText, Lightbulb, ArrowRight } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { SegmentedTabs } from '../components/ui/segmented-tabs';
+import { ErrorAlert } from '../components/ui/error-alert';
 
 export const CVInputPage: React.FC = () => {
   const navigate = useNavigate();
@@ -70,6 +72,7 @@ export const CVInputPage: React.FC = () => {
       setErrorReview(null);
       const reviewResult = await reviewCV(resumeText);
       setCVReview(reviewResult.cv_review || reviewResult);
+      setIsLoadingReview(false);
       navigate('/cv-review');
     } catch (err: any) {
       setError(err.message || 'Failed to upload resume');
@@ -96,6 +99,7 @@ export const CVInputPage: React.FC = () => {
 
       const reviewResult = await reviewCV(pastedText);
       setCVReview(reviewResult.cv_review || reviewResult);
+      setIsLoadingReview(false);
       navigate('/cv-review');
     } catch (err: any) {
       setError(err.message || 'Failed to analyze CV');
@@ -126,42 +130,18 @@ export const CVInputPage: React.FC = () => {
         </p>
       </div>
 
-      {error && (
-        <div className="flex gap-3 rounded-lg border border-destructive/50 bg-destructive/5 p-4">
-          <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-destructive">{error}</p>
-        </div>
-      )}
+      {error && <ErrorAlert message={error} />}
 
-      {/* Input Method Tabs */}
-      <div className="flex gap-2 rounded-lg border border-border bg-secondary/30 p-1">
-        <button
-          onClick={() => setInputMethod('upload')}
-          className={cn(
-            'flex-1 rounded-md px-4 py-2 font-medium text-sm transition-colors',
-            inputMethod === 'upload'
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
-          )}
-        >
-          <Upload className="inline h-4 w-4 mr-2" />
-          Upload File
-        </button>
-        <button
-          onClick={() => setInputMethod('paste')}
-          className={cn(
-            'flex-1 rounded-md px-4 py-2 font-medium text-sm transition-colors',
-            inputMethod === 'paste'
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
-          )}
-        >
-          <FileText className="inline h-4 w-4 mr-2" />
-          Paste Text
-        </button>
-      </div>
+      <SegmentedTabs
+        tabs={[
+          { id: 'upload', label: 'Upload File', icon: <Upload className="h-4 w-4" /> },
+          { id: 'paste', label: 'Paste Text', icon: <FileText className="h-4 w-4" /> },
+        ]}
+        activeTab={inputMethod}
+        onTabChange={(method) => setInputMethod(method as 'upload' | 'paste')}
+      />
 
-      <Card>
+      <Card className="border-white/80 shadow-xl">
         <CardContent className="pt-6">
           {inputMethod === 'upload' ? (
             <div
@@ -170,7 +150,7 @@ export const CVInputPage: React.FC = () => {
               onDragOver={handleDrag}
               onDrop={handleDrop}
               className={cn(
-                'relative rounded-lg border-2 border-dashed transition-colors px-6 py-12',
+                'relative rounded-2xl border-2 border-dashed transition-all px-6 py-12',
                 isDragActive
                   ? 'border-primary bg-primary/5'
                   : 'border-border bg-background hover:border-primary/50',
@@ -250,7 +230,7 @@ export const CVInputPage: React.FC = () => {
       </Card>
 
       {/* Tips Section */}
-      <Card className="bg-secondary/50">
+      <Card className="bg-gradient-to-br from-secondary/60 to-background">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Lightbulb className="h-5 w-5" />

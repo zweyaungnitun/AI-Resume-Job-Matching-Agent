@@ -54,18 +54,20 @@ function UploadResume() {
       const formData = new FormData()
       formData.append('file', file)
 
-      const response = await fetch('/api/resume/upload', {
+      const API_BASE_URL = `${window.location.origin.replace(':3000', ':8000')}/api`
+      const response = await fetch(`${API_BASE_URL}/resume/upload`, {
         method: 'POST',
         body: formData,
       })
 
       if (!response.ok) {
-        throw new Error('Upload failed')
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.detail || 'Upload failed')
       }
 
       window.location.href = '/matches'
-    } catch (err) {
-      setError('Error uploading resume. Please try again.')
+    } catch (err: any) {
+      setError(err.message || 'Error uploading resume. Please try again.')
       console.error(err)
     } finally {
       setIsLoading(false)
@@ -75,9 +77,9 @@ function UploadResume() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Upload Your Resume</h1>
+        <h1 className="text-3xl font-bold text-foreground">Resume Hub</h1>
         <p className="mt-2 text-muted-foreground">
-          Upload your CV to get started with our AI-powered job matching analysis
+          Upload your resume to unlock smart role recommendations and deeper career insights.
         </p>
       </div>
 
@@ -89,7 +91,7 @@ function UploadResume() {
           onDragOver={handleDrag}
           onDrop={handleDrop}
           className={cn(
-            'relative rounded-lg border-2 border-dashed transition-colors',
+            'relative rounded-2xl border-2 border-dashed transition-all',
             isDragActive
               ? 'border-primary bg-primary/5'
               : 'border-border bg-background hover:border-primary/50',
@@ -158,7 +160,7 @@ function UploadResume() {
       </form>
 
       {/* Info Card */}
-      <Card className="bg-secondary/50">
+      <Card className="bg-gradient-to-br from-secondary/60 to-background">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <FileText className="h-5 w-5" />
