@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import './ImprovementRecommendations.css';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Badge } from './ui/badge';
+import { Zap, Target, BookOpen, Edit3, Plus, Tag, PenTool, TrendingUp, ChevronDown } from 'lucide-react';
+import { cn } from '../lib/utils';
 
 interface PriorityAction {
   action: string;
@@ -45,232 +48,252 @@ interface ImprovementRecommendationsProps {
   currentScore?: number;
 }
 
+interface SectionHeaderProps {
+  icon: React.ReactNode;
+  title: string;
+  section: string;
+  isExpanded: boolean;
+  onToggle: (section: string) => void;
+}
+
+const SectionHeader: React.FC<SectionHeaderProps> = ({
+  icon,
+  title,
+  section,
+  isExpanded,
+  onToggle,
+}) => (
+  <button
+    onClick={() => onToggle(section)}
+    className="w-full flex items-center justify-between p-4 hover:bg-secondary/50 transition-colors rounded-lg border border-border"
+  >
+    <div className="flex items-center gap-2">
+      {icon}
+      <span className="font-semibold">{title}</span>
+    </div>
+    <ChevronDown
+      className={cn(
+        'h-5 w-5 text-muted-foreground transition-transform duration-200',
+        isExpanded && 'rotate-180'
+      )}
+    />
+  </button>
+);
+
 export const ImprovementRecommendations: React.FC<ImprovementRecommendationsProps> = ({
   data,
   currentScore = 0,
 }) => {
-  const [expandedSection, setExpandedSection] = useState<string>('overview');
+  const [expandedSection, setExpandedSection] = useState<string>('priority');
 
   const toggleSection = (section: string) => {
     setExpandedSection(expandedSection === section ? '' : section);
   };
 
   const scoreImprovement = data.estimated_score_after_improvements - currentScore;
-  const scoreColor = scoreImprovement > 0 ? '#27ae60' : '#7f8c8d';
+  const scoreColor = scoreImprovement > 0 ? 'text-green-600' : 'text-muted-foreground';
 
   return (
-    <div className="improvement-recommendations">
-      <div className="improvement-header">
-        <h3>CV Improvement Recommendations</h3>
-        <div className="score-projection">
-          <span>Potential Score Improvement:</span>
-          <strong style={{ color: scoreColor }}>
-            {currentScore} → {data.estimated_score_after_improvements}
-            {scoreImprovement > 0 && <span className="improvement-badge">+{scoreImprovement}</span>}
-          </strong>
-        </div>
-      </div>
+    <div className="space-y-4">
+      {/* Score Projection */}
+      <Card className="border-2 bg-primary/5 border-primary/20">
+        <CardHeader>
+          <div className="flex items-center justify-between gap-4">
+            <CardTitle>Potential Score Improvement</CardTitle>
+            <div className={`text-3xl font-bold ${scoreColor}`}>
+              {currentScore} → {data.estimated_score_after_improvements}
+              {scoreImprovement > 0 && <span className="ml-2 text-lg text-green-600">+{scoreImprovement}</span>}
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
 
-      <div className="overall-strategy">
-        <p>{data.overall_strategy}</p>
-      </div>
+      {/* Overall Strategy */}
+      {data.overall_strategy && (
+        <Card className="bg-primary/5">
+          <CardContent className="pt-6">
+            <p className="text-sm leading-relaxed text-foreground">{data.overall_strategy}</p>
+          </CardContent>
+        </Card>
+      )}
 
+      {/* Priority Actions */}
       {data.priority_actions.length > 0 && (
-        <div className="recommendation-section">
-          <div
-            className="section-header"
-            onClick={() => toggleSection('priority')}
-          >
-            <span>🎯 Priority Actions ({data.priority_actions.length})</span>
-            <span className="toggle-icon">{expandedSection === 'priority' ? '▼' : '▶'}</span>
-          </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <SectionHeader
+              icon={<Target className="h-5 w-5 text-primary" />}
+              title={`Priority Actions (${data.priority_actions.length})`}
+              section="priority"
+              isExpanded={expandedSection === 'priority'}
+              onToggle={toggleSection}
+            />
+          </CardHeader>
           {expandedSection === 'priority' && (
-            <div className="section-content">
+            <CardContent className="space-y-3 pt-0">
               {data.priority_actions.map((action, idx) => (
-                <div key={idx} className={`action-card impact-${action.impact.toLowerCase()}`}>
-                  <div className="action-header">
-                    <h5>{action.action}</h5>
-                    <span className={`impact-badge impact-${action.impact.toLowerCase()}`}>
+                <div key={idx} className="border-l-2 border-primary pl-4 py-2">
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <h5 className="font-semibold text-sm">{action.action}</h5>
+                    <Badge variant={action.impact === 'High' ? 'default' : action.impact === 'Medium' ? 'outline' : 'secondary'} className={action.impact === 'High' ? 'bg-green-600 hover:bg-green-700' : ''}>
                       {action.impact}
-                    </span>
+                    </Badge>
                   </div>
-                  <div className="action-detail">
-                    <strong>Section:</strong> {action.section}
-                  </div>
-                  <div className="action-detail">
-                    <strong>Example:</strong> <em>{action.example}</em>
-                  </div>
+                  <p className="text-xs text-muted-foreground"><strong>Section:</strong> {action.section}</p>
+                  <p className="text-xs text-muted-foreground mt-1"><strong>Example:</strong> {action.example}</p>
                 </div>
               ))}
-            </div>
+            </CardContent>
           )}
-        </div>
+        </Card>
       )}
 
+      {/* Skills to Add */}
       {data.skills_to_add.length > 0 && (
-        <div className="recommendation-section">
-          <div
-            className="section-header"
-            onClick={() => toggleSection('skills')}
-          >
-            <span>📚 Skills to Acquire ({data.skills_to_add.length})</span>
-            <span className="toggle-icon">{expandedSection === 'skills' ? '▼' : '▶'}</span>
-          </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <SectionHeader icon={<BookOpen className="h-5 w-5 text-primary" />} title={`Skills to Acquire (${data.skills_to_add.length})`} section="skills" isExpanded={expandedSection === 'skills'} onToggle={toggleSection} />
+          </CardHeader>
           {expandedSection === 'skills' && (
-            <div className="section-content">
+            <CardContent className="space-y-3 pt-0">
               {data.skills_to_add.map((skill, idx) => (
-                <div key={idx} className={`skill-card importance-${skill.importance.toLowerCase()}`}>
-                  <div className="skill-name">
-                    {skill.skill}
-                    <span className={`importance-badge importance-${skill.importance.toLowerCase()}`}>
+                <div key={idx} className="border rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-sm">{skill.skill}</span>
+                    <Badge variant={skill.importance === 'Required' ? 'destructive' : 'secondary'}>
                       {skill.importance}
-                    </span>
+                    </Badge>
                   </div>
-                  <p><strong>How to acquire:</strong> {skill.how_to_acquire}</p>
-                  <p><strong>Timeframe:</strong> {skill.timeframe}</p>
+                  <p className="text-xs text-muted-foreground"><strong>How:</strong> {skill.how_to_acquire}</p>
+                  <p className="text-xs text-muted-foreground"><strong>Timeline:</strong> {skill.timeframe}</p>
                 </div>
               ))}
-            </div>
+            </CardContent>
           )}
-        </div>
+        </Card>
       )}
 
+      {/* Bullet Rewrites */}
       {data.bullet_rewrites.length > 0 && (
-        <div className="recommendation-section">
-          <div
-            className="section-header"
-            onClick={() => toggleSection('bullets')}
-          >
-            <span>✏️ Rewrite Suggestions ({data.bullet_rewrites.length})</span>
-            <span className="toggle-icon">{expandedSection === 'bullets' ? '▼' : '▶'}</span>
-          </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <SectionHeader icon={<Edit3 className="h-5 w-5 text-primary" />} title={`Rewrite Suggestions (${data.bullet_rewrites.length})`} section="bullets" isExpanded={expandedSection === 'bullets'} onToggle={toggleSection} />
+          </CardHeader>
           {expandedSection === 'bullets' && (
-            <div className="section-content">
+            <CardContent className="space-y-3 pt-0">
               {data.bullet_rewrites.map((rewrite, idx) => (
-                <div key={idx} className="rewrite-card">
-                  <div className="rewrite-before">
-                    <strong>Before:</strong>
-                    <p className="before-text">{rewrite.original}</p>
+                <div key={idx} className="border rounded-lg p-3 space-y-2">
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold text-muted-foreground">Before:</p>
+                    <p className="text-sm line-through opacity-60">{rewrite.original}</p>
                   </div>
-                  <div className="rewrite-arrow">→</div>
-                  <div className="rewrite-after">
-                    <strong>After:</strong>
-                    <p className="after-text">{rewrite.improved}</p>
+                  <div className="text-center text-xs text-primary">↓</div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold text-muted-foreground">After:</p>
+                    <p className="text-sm text-foreground font-medium">{rewrite.improved}</p>
                   </div>
-                  <div className="rewrite-why">
-                    <strong>Why:</strong> {rewrite.why}
-                  </div>
+                  <p className="text-xs text-muted-foreground"><strong>Why:</strong> {rewrite.why}</p>
                 </div>
               ))}
-            </div>
+            </CardContent>
           )}
-        </div>
+        </Card>
       )}
 
+      {/* Keywords */}
       {data.keywords_to_add.length > 0 && (
-        <div className="recommendation-section">
-          <div
-            className="section-header"
-            onClick={() => toggleSection('keywords')}
-          >
-            <span>🏷️ Keywords to Add ({data.keywords_to_add.length})</span>
-            <span className="toggle-icon">{expandedSection === 'keywords' ? '▼' : '▶'}</span>
-          </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <SectionHeader icon={<Tag className="h-5 w-5 text-primary" />} title={`Keywords to Add (${data.keywords_to_add.length})`} section="keywords" isExpanded={expandedSection === 'keywords'} onToggle={toggleSection} />
+          </CardHeader>
           {expandedSection === 'keywords' && (
-            <div className="section-content">
-              <div className="keywords-grid">
+            <CardContent className="pt-0">
+              <div className="flex flex-wrap gap-2">
                 {data.keywords_to_add.map((keyword, idx) => (
-                  <span key={idx} className="keyword-chip">{keyword}</span>
+                  <Badge key={idx} variant="outline">{keyword}</Badge>
                 ))}
               </div>
-            </div>
+            </CardContent>
           )}
-        </div>
+        </Card>
       )}
 
+      {/* New Sections */}
       {data.new_sections_to_add.length > 0 && (
-        <div className="recommendation-section">
-          <div
-            className="section-header"
-            onClick={() => toggleSection('sections')}
-          >
-            <span>➕ New Sections to Add ({data.new_sections_to_add.length})</span>
-            <span className="toggle-icon">{expandedSection === 'sections' ? '▼' : '▶'}</span>
-          </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <SectionHeader icon={<Plus className="h-5 w-5 text-primary" />} title={`New Sections (${data.new_sections_to_add.length})`} section="sections" isExpanded={expandedSection === 'sections'} onToggle={toggleSection} />
+          </CardHeader>
           {expandedSection === 'sections' && (
-            <div className="section-content">
+            <CardContent className="space-y-3 pt-0">
               {data.new_sections_to_add.map((section, idx) => (
-                <div key={idx} className="new-section-card">
-                  <h5>{section.section_name}</h5>
-                  <p><strong>Why:</strong> {section.reason}</p>
-                  <p><strong>Example:</strong></p>
-                  <pre>{section.example_content}</pre>
+                <div key={idx} className="border rounded-lg p-3 space-y-2">
+                  <h5 className="font-semibold text-sm">{section.section_name}</h5>
+                  <p className="text-xs text-muted-foreground"><strong>Why:</strong> {section.reason}</p>
+                  <div className="bg-secondary/50 rounded p-2 text-xs font-mono overflow-x-auto">
+                    {section.example_content}
+                  </div>
                 </div>
               ))}
-            </div>
+            </CardContent>
           )}
-        </div>
+        </Card>
       )}
 
+      {/* Formatting */}
       {data.formatting_improvements.length > 0 && (
-        <div className="recommendation-section">
-          <div
-            className="section-header"
-            onClick={() => toggleSection('formatting')}
-          >
-            <span>🎨 Formatting Improvements ({data.formatting_improvements.length})</span>
-            <span className="toggle-icon">{expandedSection === 'formatting' ? '▼' : '▶'}</span>
-          </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <SectionHeader icon={<PenTool className="h-5 w-5 text-primary" />} title={`Formatting Tips (${data.formatting_improvements.length})`} section="formatting" isExpanded={expandedSection === 'formatting'} onToggle={toggleSection} />
+          </CardHeader>
           {expandedSection === 'formatting' && (
-            <div className="section-content">
-              <ul className="improvements-list">
+            <CardContent className="pt-0">
+              <ul className="space-y-2">
                 {data.formatting_improvements.map((item, idx) => (
-                  <li key={idx}>{item}</li>
+                  <li key={idx} className="flex gap-2 text-sm">
+                    <span className="text-primary mt-0.5">•</span>
+                    <span>{item}</span>
+                  </li>
                 ))}
               </ul>
-            </div>
+            </CardContent>
           )}
-        </div>
+        </Card>
       )}
 
+      {/* Quantification */}
       {data.quantification_opportunities.length > 0 && (
-        <div className="recommendation-section">
-          <div
-            className="section-header"
-            onClick={() => toggleSection('quantification')}
-          >
-            <span>📊 Add Quantifiable Metrics ({data.quantification_opportunities.length})</span>
-            <span className="toggle-icon">{expandedSection === 'quantification' ? '▼' : '▶'}</span>
-          </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <SectionHeader icon={<TrendingUp className="h-5 w-5 text-primary" />} title={`Quantifiable Metrics (${data.quantification_opportunities.length})`} section="quantification" isExpanded={expandedSection === 'quantification'} onToggle={toggleSection} />
+          </CardHeader>
           {expandedSection === 'quantification' && (
-            <div className="section-content">
-              <ul className="improvements-list">
+            <CardContent className="pt-0">
+              <ul className="space-y-2">
                 {data.quantification_opportunities.map((item, idx) => (
-                  <li key={idx}>{item}</li>
+                  <li key={idx} className="flex gap-2 text-sm">
+                    <span className="text-primary mt-0.5">•</span>
+                    <span>{item}</span>
+                  </li>
                 ))}
               </ul>
-            </div>
+            </CardContent>
           )}
-        </div>
+        </Card>
       )}
 
+      {/* Summary Rewrite */}
       {data.summary_rewrite && (
-        <div className="recommendation-section">
-          <div
-            className="section-header"
-            onClick={() => toggleSection('summary')}
-          >
-            <span>📝 Suggested Professional Summary</span>
-            <span className="toggle-icon">{expandedSection === 'summary' ? '▼' : '▶'}</span>
-          </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <SectionHeader icon={<Zap className="h-5 w-5 text-primary" />} title="Suggested Professional Summary" section="summary" isExpanded={expandedSection === 'summary'} onToggle={toggleSection} />
+          </CardHeader>
           {expandedSection === 'summary' && (
-            <div className="section-content">
-              <div className="summary-rewrite">
-                <p>{data.summary_rewrite}</p>
-              </div>
-            </div>
+            <CardContent className="pt-0">
+              <p className="text-sm text-foreground leading-relaxed">{data.summary_rewrite}</p>
+            </CardContent>
           )}
-        </div>
+        </Card>
       )}
     </div>
   );
