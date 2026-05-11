@@ -68,7 +68,20 @@ class MultiAgentOrchestrator:
 
         # ---- Stage 2: Job analysis ----
         logger.info("Stage 2: Job analysis")
-        job_analysis = self._analyze_job(job_source_type, job_source_value)
+
+        # If search is requested, use top RAG match instead of web search
+        if job_source_type == "search" and rag_matches:
+            logger.info("Using top RAG match for job analysis (Pinecone-only mode)")
+            job_analysis = {
+                "success": True,
+                "job_title": rag_matches[0].get("job_title", "Unknown Role"),
+                "company": rag_matches[0].get("company", "Unknown Company"),
+                "description": rag_matches[0].get("description_snippet", ""),
+                "source_url": "",
+                "source_title": rag_matches[0].get("job_title", ""),
+            }
+        else:
+            job_analysis = self._analyze_job(job_source_type, job_source_value)
 
         if not job_analysis.get("success"):
             logger.warning(f"Job analysis failed: {job_analysis.get('error')}")

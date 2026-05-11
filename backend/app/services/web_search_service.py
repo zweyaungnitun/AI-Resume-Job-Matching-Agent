@@ -4,7 +4,7 @@ import re
 import requests
 from bs4 import BeautifulSoup
 from typing import Optional
-from duckduckgo_search import DDGS
+from app.config import settings
 
 
 class WebSearchService:
@@ -64,55 +64,91 @@ class WebSearchService:
         }
 
     def search_jobs(self, query: str, max_results: int = 5) -> list[dict]:
-        """Search DuckDuckGo for job postings"""
+        """Search Google for job postings"""
+        if not settings.GOOGLE_SEARCH_API_KEY or not settings.GOOGLE_SEARCH_ENGINE_ID:
+            return []
+
         try:
-            with DDGS() as ddgs:
-                results = list(ddgs.text(f"{query} job posting site:linkedin.com OR site:indeed.com OR site:glassdoor.com", max_results=max_results))
-            return [
-                {
-                    "title": r.get("title", ""),
-                    "url": r.get("href", ""),
-                    "snippet": r.get("body", ""),
-                }
-                for r in results
-            ]
+            search_query = f"{query} job posting site:linkedin.com OR site:indeed.com OR site:glassdoor.com"
+            url = "https://www.googleapis.com/customsearch/v1"
+            params = {
+                "q": search_query,
+                "key": settings.GOOGLE_SEARCH_API_KEY,
+                "cx": settings.GOOGLE_SEARCH_ENGINE_ID,
+                "num": max_results,
+            }
+
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+
+            results = []
+            for item in data.get("items", []):
+                results.append({
+                    "title": item.get("title", ""),
+                    "url": item.get("link", ""),
+                    "snippet": item.get("snippet", ""),
+                })
+            return results
         except Exception:
             return []
 
     def search_company(self, company_name: str) -> list[dict]:
         """Search for company background information"""
+        if not settings.GOOGLE_SEARCH_API_KEY or not settings.GOOGLE_SEARCH_ENGINE_ID:
+            return []
+
         try:
-            with DDGS() as ddgs:
-                results = list(ddgs.text(
-                    f"{company_name} company overview culture tech stack employees",
-                    max_results=6,
-                ))
-            return [
-                {
-                    "title": r.get("title", ""),
-                    "url": r.get("href", ""),
-                    "snippet": r.get("body", ""),
-                }
-                for r in results
-            ]
+            search_query = f"{company_name} company overview culture tech stack employees"
+            url = "https://www.googleapis.com/customsearch/v1"
+            params = {
+                "q": search_query,
+                "key": settings.GOOGLE_SEARCH_API_KEY,
+                "cx": settings.GOOGLE_SEARCH_ENGINE_ID,
+                "num": 6,
+            }
+
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+
+            results = []
+            for item in data.get("items", []):
+                results.append({
+                    "title": item.get("title", ""),
+                    "url": item.get("link", ""),
+                    "snippet": item.get("snippet", ""),
+                })
+            return results
         except Exception:
             return []
 
     def search_company_news(self, company_name: str) -> list[dict]:
         """Search for recent company news"""
+        if not settings.GOOGLE_SEARCH_API_KEY or not settings.GOOGLE_SEARCH_ENGINE_ID:
+            return []
+
         try:
-            with DDGS() as ddgs:
-                results = list(ddgs.text(
-                    f"{company_name} news 2024 2025",
-                    max_results=4,
-                ))
-            return [
-                {
-                    "title": r.get("title", ""),
-                    "url": r.get("href", ""),
-                    "snippet": r.get("body", ""),
-                }
-                for r in results
-            ]
+            search_query = f"{company_name} news 2024 2025 2026"
+            url = "https://www.googleapis.com/customsearch/v1"
+            params = {
+                "q": search_query,
+                "key": settings.GOOGLE_SEARCH_API_KEY,
+                "cx": settings.GOOGLE_SEARCH_ENGINE_ID,
+                "num": 4,
+            }
+
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+
+            results = []
+            for item in data.get("items", []):
+                results.append({
+                    "title": item.get("title", ""),
+                    "url": item.get("link", ""),
+                    "snippet": item.get("snippet", ""),
+                })
+            return results
         except Exception:
             return []

@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     # Optional web search API keys
     SERPER_API_KEY: Optional[str] = None
     TAVILY_API_KEY: Optional[str] = None
+    GOOGLE_SEARCH_API_KEY: Optional[str] = None
+    GOOGLE_SEARCH_ENGINE_ID: Optional[str] = None
 
     class Config:
         env_file = ".env"

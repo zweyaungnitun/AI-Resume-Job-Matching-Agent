@@ -2,9 +2,9 @@
 
 import numpy as np
 from pinecone import Pinecone
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
 from app.config import settings
+from app.services.embeddings import get_embeddings_model
 
 class RAGService:
     """Retrieval-Augmented Generation service for job matching"""
@@ -16,11 +16,8 @@ class RAGService:
         self.pc = None
         self.index = None
 
-        # Initialize embeddings
-        self.embeddings = GoogleGenerativeAIEmbeddings(
-            google_api_key=settings.GOOGLE_API_KEY,
-            model="models/embedding-001"
-        )
+        # Initialize embeddings using flexible model (matches Pinecone's 384 dimensions)
+        self.embeddings = get_embeddings_model()
 
     def _ensure_pinecone(self):
         """Lazy initialize Pinecone connection"""
@@ -33,7 +30,7 @@ class RAGService:
         self._ensure_pinecone()
 
         # Embed the query
-        query_embedding = self.embeddings.embed_query(query)
+        query_embedding = self.embeddings.encode(query).tolist()
 
         # Query Pinecone
         results = self.index.query(
@@ -67,7 +64,7 @@ class RAGService:
             job_text = f"{job.get('job_title', '')} {job.get('description', '')}"
 
             # Embed the job description
-            embedding = self.embeddings.embed_query(job_text)
+            embedding = self.embeddings.encode(job_text).tolist()
 
             # Prepare metadata
             metadata = {
@@ -91,9 +88,9 @@ class RAGService:
     def score_match(self, resume: str, job: dict) -> float:
         """Score how well a resume matches a job (0.0-1.0)"""
         # Embed resume and job
-        resume_embedding = self.embeddings.embed_query(resume)
+        resume_embedding = self.embeddings.encode(resume).tolist()
         job_text = f"{job.get('job_title', '')} {job.get('description', '')}"
-        job_embedding = self.embeddings.embed_query(job_text)
+        job_embedding = self.embeddings.encode(job_text).tolist()
 
         # Compute cosine similarity
         resume_vec = np.array(resume_embedding)
