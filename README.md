@@ -78,7 +78,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env
 # Edit backend/.env with your credentials
-python main.py
+uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
 Backend will be available at `http://localhost:8000`

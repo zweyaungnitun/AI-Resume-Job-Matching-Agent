@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    SECURITY_STRICT_MODE: bool = False
+    ENABLE_AGENT_PROCTORING: bool = True
+    MAX_AGENT_INPUT_CHARS: int = 30000
+    AGENT_MONITORING_ENABLED: bool = True
 
     # API
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8000"]

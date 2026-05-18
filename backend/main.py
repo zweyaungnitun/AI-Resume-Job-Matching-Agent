@@ -7,8 +7,9 @@ from contextlib import asynccontextmanager
 from app.config import settings
 from app.routes import resume, agent, health, auth
 from app.logger import get_logger
-from app.middleware.security import SecurityHeadersMiddleware
+from app.middleware.security import SecurityHeadersMiddleware, RequestMonitoringMiddleware
 from app.database import init_db
+from app.monitoring import router as monitoring_router, PrometheusMiddleware
 
 logger = get_logger("main")
 
@@ -37,6 +38,7 @@ app = FastAPI(
 
 # Security middleware (add first to wrap all responses)
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestMonitoringMiddleware)
 
 # CORS middleware
 app.add_middleware(
@@ -46,6 +48,10 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
+
+# Prometheus metrics middleware
+app.add_middleware(PrometheusMiddleware)
+app.include_router(monitoring_router)
 
 # Exception handlers
 @app.exception_handler(RequestValidationError)
