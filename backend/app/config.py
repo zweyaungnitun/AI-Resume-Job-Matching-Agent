@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     ENABLE_AGENT_PROCTORING: bool = True
     MAX_AGENT_INPUT_CHARS: int = 30000
     AGENT_MONITORING_ENABLED: bool = True
+    AIOPS_GUARDRAIL_STRICT_MODE: bool = True
+    AIOPS_RATE_LIMIT_PER_MIN: int = 30
+    AIOPS_MASK_PII_LOGS: bool = True
 
     # API
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8000"]

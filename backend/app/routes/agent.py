@@ -3,10 +3,13 @@ from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, field_validator, ConfigDict
 from typing import Optional, Literal
+from sqlalchemy.orm import Session
 
 from app.services.agent_service import MatchingAgent
 from app.services.orchestrator import MultiAgentOrchestrator
 from app.dependencies.auth import get_current_user
+from app.database import get_db
+from app.services.aiops_service import AIOpsService
 from app.logger import get_logger
 
 logger = get_logger(__name__)
@@ -124,15 +127,52 @@ class RoleBasedJobMatchRequest(BaseModel):
     num_web_matches: int = 5
 
 
-# ── Legacy endpoints (unchanged) ──────────────────────────────────────────────
+class FeedbackRequest(BaseModel):
+    interaction_id: str
+    rating: int  # 1 for thumbs up, -1 for thumbs down
+
+
+# ── Feedback Endpoint ──────────────────────────────────────────────────
+
+@router.post("/feedback")
+async def save_interaction_feedback(
+    request: FeedbackRequest,
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Save user thumbs up / down feedback for an AI recommendation interaction."""
+    from app.models.ai_interaction import AIInteraction
+    interaction = db.query(AIInteraction).filter(AIInteraction.id == request.interaction_id).first()
+    if not interaction:
+        raise HTTPException(status_code=404, detail="Interaction log entry not found")
+    interaction.user_rating = request.rating
+    db.commit()
+    return {"status": "success", "message": "Feedback saved successfully"}
+
+
+# ── Legacy endpoints (wrapped with AIOps) ──────────────────────────────────────
 
 @router.post("/match", response_model=MatchResponse)
-async def match_jobs(request: MatchRequest, user=Depends(get_current_user)):
+async def match_jobs(
+    request: MatchRequest,
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """Find matching jobs for a given resume using RAG."""
     if len(request.resume_text.strip()) < 10:
         raise HTTPException(status_code=400, detail="Resume text must be at least 10 characters long")
+    
+    def run_match(prompt):
+        return agent.match_resume_to_jobs(prompt, num_matches=request.num_matches)
+
     try:
-        result = agent.match_resume_to_jobs(request.resume_text, num_matches=request.num_matches)
+        result = AIOpsService.process_ai_interaction(
+            db=db,
+            user_email=user["email"],
+            endpoint="/agent/match",
+            prompt_text=request.resume_text,
+            exec_callable=run_match
+        )
         matches = [
             JobMatch(
                 job_title=m["job_title"],
@@ -151,68 +191,114 @@ async def match_jobs(request: MatchRequest, user=Depends(get_current_user)):
             resume_experience=result["resume_experience"],
             total_matches=result["total_matches"],
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error matching jobs: {str(e)}")
 
 
 @router.post("/generate-cover-letter", response_model=CoverLetterResponse)
-async def generate_cover_letter(request: CoverLetterRequest, user=Depends(get_current_user)):
+async def generate_cover_letter(
+    request: CoverLetterRequest,
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """Generate a tailored cover letter for a specific job."""
     if len(request.resume_text.strip()) < 10:
         raise HTTPException(status_code=400, detail="Resume text must be at least 10 characters long")
     if len(request.job_description.strip()) < 10:
         raise HTTPException(status_code=400, detail="Job description must be at least 10 characters long")
+    
+    prompt = f"Resume: {request.resume_text}\nJob Description: {request.job_description}"
+    
+    def run_generate(prompt_input):
+        return agent.generate_cover_letter(request.resume_text, request.job_description)
+
     try:
-        cover_letter = agent.generate_cover_letter(request.resume_text, request.job_description)
+        cover_letter = AIOpsService.process_ai_interaction(
+            db=db,
+            user_email=user["email"],
+            endpoint="/agent/generate-cover-letter",
+            prompt_text=prompt,
+            exec_callable=run_generate
+        )
         return CoverLetterResponse(cover_letter=cover_letter)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating cover letter: {str(e)}")
 
 
 @router.post("/analyze-gaps", response_model=GapAnalysisResponse)
-async def analyze_gaps(request: GapAnalysisRequest, user=Depends(get_current_user)):
+async def analyze_gaps(
+    request: GapAnalysisRequest,
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """Analyze skill and experience gaps between resume and job."""
     if len(request.resume_text.strip()) < 10:
         raise HTTPException(status_code=400, detail="Resume text must be at least 10 characters long")
     if len(request.job_description.strip()) < 10:
         raise HTTPException(status_code=400, detail="Job description must be at least 10 characters long")
+    
+    prompt = f"Resume: {request.resume_text}\nJob Description: {request.job_description}"
+
+    def run_analyze(prompt_input):
+        return agent.analyze_skill_gaps(request.resume_text, request.job_description)
+
     try:
-        result = agent.analyze_skill_gaps(request.resume_text, request.job_description)
+        result = AIOpsService.process_ai_interaction(
+            db=db,
+            user_email=user["email"],
+            endpoint="/agent/analyze-gaps",
+            prompt_text=prompt,
+            exec_callable=run_analyze
+        )
         return GapAnalysisResponse(**result)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error analyzing gaps: {str(e)}")
 
 
-# ── New multi-agent endpoints ──────────────────────────────────────────────────
+# ── New multi-agent endpoints (wrapped with AIOps) ─────────────────────────────
 
 @router.post("/review-cv")
-async def review_cv(request: CVReviewRequest, user=Depends(get_current_user)):
+async def review_cv(
+    request: CVReviewRequest,
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """
     Agent 1: Full CV quality review.
     Returns ATS score, structure score, content score, strengths, weaknesses, and immediate fixes.
     """
     if len(request.resume_text.strip()) < 50:
         raise HTTPException(status_code=400, detail="Resume text too short to review.")
-    try:
-        logger.info(f"[ROUTE_CV_REVIEW] CV review endpoint called | resume_len={len(request.resume_text)} chars")
-
-        result = orchestrator.review_cv_only(request.resume_text)
-        logger.info(f"[ROUTE_CV_REVIEW] Orchestrator returned result | keys={list(result.keys())}")
-        logger.debug(f"[ROUTE_CV_REVIEW] Result structure: {result}")
-
+    
+    def run_review(prompt):
+        result = orchestrator.review_cv_only(prompt)
         # Flatten if result is nested under 'cv_review'
         if isinstance(result, dict) and 'cv_review' in result:
-            logger.debug(f"[ROUTE_CV_REVIEW] Flattening nested 'cv_review' structure")
             result = result['cv_review']
-            logger.debug(f"[ROUTE_CV_REVIEW] Flattened result keys: {list(result.keys())}")
+        return result
 
-        logger.debug(f"[ROUTE_CV_REVIEW] Creating CVReviewResponse with keys: {list(result.keys())}")
+    try:
+        logger.info(f"[ROUTE_CV_REVIEW] CV review endpoint called | resume_len={len(request.resume_text)} chars")
+        result = AIOpsService.process_ai_interaction(
+            db=db,
+            user_email=user["email"],
+            endpoint="/agent/review-cv",
+            prompt_text=request.resume_text,
+            exec_callable=run_review
+        )
+        
         response = CVReviewResponse(**result)
-        logger.debug(f"[ROUTE_CV_REVIEW] Response object created successfully")
         logger.info(f"[ROUTE_CV_REVIEW] CV review completed | overall_score={response.overall_score}")
-
         return response
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"[ROUTE_CV_REVIEW] CV review failed: {type(e).__name__}: {str(e)}", exc_info=True)
         if 'User location is not supported' in str(e):
@@ -223,77 +309,111 @@ async def review_cv(request: CVReviewRequest, user=Depends(get_current_user)):
 
 
 @router.post("/rag-match")
-async def rag_match(request: RAGMatchRequest, user=Depends(get_current_user)):
+async def rag_match(
+    request: RAGMatchRequest,
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """
     Agent 2: RAG-based job matching from the vector database.
     Returns semantically matched jobs with gap analysis.
     """
     if len(request.resume_text.strip()) < 50:
         raise HTTPException(status_code=400, detail="Resume text too short.")
-    try:
-        logger.info(
-            "RAG matching requested: resume=%s chars, rag=%s, web=%s, query=%s",
-            len(request.resume_text),
-            request.num_matches,
-            request.include_web_search,
-            bool(request.job_query and request.job_query.strip()),
-        )
-        result = orchestrator.match_jobs_comprehensive(
+    
+    prompt = f"Resume: {request.resume_text}\nQuery: {request.job_query or ''}"
+
+    def run_rag(prompt_input):
+        return orchestrator.match_jobs_comprehensive(
             resume_text=request.resume_text,
             job_query=request.job_query,
             num_rag_matches=request.num_matches,
             num_web_matches=request.num_matches,
             include_web_search=request.include_web_search,
         )
+
+    try:
+        logger.info("RAG matching requested")
+        result = AIOpsService.process_ai_interaction(
+            db=db,
+            user_email=user["email"],
+            endpoint="/agent/rag-match",
+            prompt_text=prompt,
+            exec_callable=run_rag
+        )
         if not result.get("success"):
             raise HTTPException(status_code=422, detail=result.get("error", "RAG matching failed."))
         logger.info("RAG matching completed successfully")
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"RAG matching failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"RAG matching failed: {str(e)}")
 
 
 @router.post("/search-jobs")
-async def search_jobs(request: JobSearchRequest, user=Depends(get_current_user)):
-    """
-    Search the web for jobs matching a query and analyze the top results.
-    """
+async def search_jobs(
+    request: JobSearchRequest,
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Search the web for jobs matching a query and analyze the top results."""
     if len(request.query.strip()) < 3:
         raise HTTPException(status_code=400, detail="Search query too short.")
+
+    def run_search(prompt):
+        return orchestrator.search_jobs(prompt)
+
     try:
-        return orchestrator.search_jobs(request.query)
+        return AIOpsService.process_ai_interaction(
+            db=db,
+            user_email=user["email"],
+            endpoint="/agent/search-jobs",
+            prompt_text=request.query,
+            exec_callable=run_search
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Job search failed: {str(e)}")
 
 
 @router.post("/full-analysis")
-async def full_analysis(request: FullAnalysisRequest, user=Depends(get_current_user)):
-    """
-    Full multi-agent pipeline:
-    1. CV Review
-    2. RAG Job Matching
-    3. Job Analysis (URL / pasted text / web search)
-    4. Company Research
-    5. Match Scoring with detailed breakdown
-    6. CV Improvement Recommendations
-
-    job_source_type: "url" | "text" | "search"
-    job_source_value: the URL, pasted description, or search query
-    """
+async def full_analysis(
+    request: FullAnalysisRequest,
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Full multi-agent analysis pipeline."""
     if len(request.resume_text.strip()) < 50:
         raise HTTPException(status_code=400, detail="Resume text too short.")
     if len(request.job_source_value.strip()) < 3:
         raise HTTPException(status_code=400, detail="Job source value too short.")
-    try:
-        result = orchestrator.full_analysis(
+    
+    prompt = f"Resume: {request.resume_text}\nJob Source Type: {request.job_source_type}\nJob Source Value: {request.job_source_value}"
+
+    def run_full(prompt_input):
+        return orchestrator.full_analysis(
             resume_text=request.resume_text,
             job_source_type=request.job_source_type,
             job_source_value=request.job_source_value,
             num_rag_matches=request.num_rag_matches,
         )
+
+    try:
+        result = AIOpsService.process_ai_interaction(
+            db=db,
+            user_email=user["email"],
+            endpoint="/agent/full-analysis",
+            prompt_text=prompt,
+            exec_callable=run_full
+        )
         if not result.get("success"):
-            raise HTTPException(status_code=422, detail=result.get("error", "Analysis failed."))
+            return {
+                **result,
+                "partial": True,
+            }
         return result
     except HTTPException:
         raise
@@ -302,27 +422,34 @@ async def full_analysis(request: FullAnalysisRequest, user=Depends(get_current_u
 
 
 @router.post("/match-jobs-comprehensive")
-async def match_jobs_comprehensive(request: ComprehensiveJobMatchRequest, user=Depends(get_current_user)):
-    """
-    Comprehensive job matching using RAG + Web Search + LLM Scoring.
-
-    Combines:
-    - RAG (Pinecone vector DB) for semantic job matching
-    - Web Search (Google/DuckDuckGo) for broader job discovery
-    - LLM-powered scoring for intelligent ranking
-
-    Returns jobs ranked by match score (0-100).
-    """
+async def match_jobs_comprehensive(
+    request: ComprehensiveJobMatchRequest,
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Comprehensive job matching using RAG + Web Search + LLM Scoring."""
     if len(request.resume_text.strip()) < 50:
         raise HTTPException(status_code=400, detail="Resume text too short.")
-    try:
-        logger.info("Comprehensive job matching endpoint called")
-        result = orchestrator.match_jobs_comprehensive(
+    
+    prompt = f"Resume: {request.resume_text}\nJob Query: {request.job_query or ''}"
+
+    def run_comprehensive(prompt_input):
+        return orchestrator.match_jobs_comprehensive(
             resume_text=request.resume_text,
             job_query=request.job_query,
             num_rag_matches=request.num_rag_matches,
             num_web_matches=request.num_web_matches,
             include_web_search=request.include_web_search,
+        )
+
+    try:
+        logger.info("Comprehensive job matching endpoint called")
+        result = AIOpsService.process_ai_interaction(
+            db=db,
+            user_email=user["email"],
+            endpoint="/agent/match-jobs-comprehensive",
+            prompt_text=prompt,
+            exec_callable=run_comprehensive
         )
         if not result.get("success"):
             raise HTTPException(status_code=422, detail=result.get("error", "Job matching failed."))
@@ -335,24 +462,35 @@ async def match_jobs_comprehensive(request: ComprehensiveJobMatchRequest, user=D
 
 
 @router.post("/match-jobs-by-skills")
-async def match_jobs_by_skills(request: SkillBasedJobMatchRequest, user=Depends(get_current_user)):
-    """
-    Match jobs based on specific target skills.
-
-    Use this to discover jobs that require certain skills.
-    Useful for career pivots or skill-based job exploration.
-    """
+async def match_jobs_by_skills(
+    request: SkillBasedJobMatchRequest,
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Match jobs based on specific target skills."""
     if len(request.resume_text.strip()) < 50:
         raise HTTPException(status_code=400, detail="Resume text too short.")
     if not request.target_skills or len(request.target_skills) == 0:
         raise HTTPException(status_code=400, detail="At least one skill must be provided.")
-    try:
-        logger.info(f"Skill-based job matching for skills: {request.target_skills}")
-        result = orchestrator.match_jobs_by_skills(
+    
+    prompt = f"Resume: {request.resume_text}\nTarget Skills: {', '.join(request.target_skills)}"
+
+    def run_by_skills(prompt_input):
+        return orchestrator.match_jobs_by_skills(
             resume_text=request.resume_text,
             target_skills=request.target_skills,
             num_rag_matches=request.num_rag_matches,
             num_web_matches=request.num_web_matches,
+        )
+
+    try:
+        logger.info(f"Skill-based job matching for skills: {request.target_skills}")
+        result = AIOpsService.process_ai_interaction(
+            db=db,
+            user_email=user["email"],
+            endpoint="/agent/match-jobs-by-skills",
+            prompt_text=prompt,
+            exec_callable=run_by_skills
         )
         if not result.get("success"):
             raise HTTPException(status_code=422, detail=result.get("error", "Job matching failed."))
@@ -365,28 +503,35 @@ async def match_jobs_by_skills(request: SkillBasedJobMatchRequest, user=Depends(
 
 
 @router.post("/match-jobs-by-role")
-async def match_jobs_by_role(request: RoleBasedJobMatchRequest, user=Depends(get_current_user)):
-    """
-    Match jobs based on a specific target role.
-
-    Examples:
-    - "Senior Software Engineer"
-    - "Data Scientist"
-    - "Product Manager"
-
-    Searches for jobs matching this role across RAG + Web Search.
-    """
+async def match_jobs_by_role(
+    request: RoleBasedJobMatchRequest,
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Match jobs based on a specific target role."""
     if len(request.resume_text.strip()) < 50:
         raise HTTPException(status_code=400, detail="Resume text too short.")
     if len(request.target_role.strip()) < 2:
         raise HTTPException(status_code=400, detail="Target role must be at least 2 characters.")
-    try:
-        logger.info(f"Role-based job matching for role: {request.target_role}")
-        result = orchestrator.match_jobs_by_role(
+    
+    prompt = f"Resume: {request.resume_text}\nTarget Role: {request.target_role}"
+
+    def run_by_role(prompt_input):
+        return orchestrator.match_jobs_by_role(
             resume_text=request.resume_text,
             target_role=request.target_role,
             num_rag_matches=request.num_rag_matches,
             num_web_matches=request.num_web_matches,
+        )
+
+    try:
+        logger.info(f"Role-based job matching for role: {request.target_role}")
+        result = AIOpsService.process_ai_interaction(
+            db=db,
+            user_email=user["email"],
+            endpoint="/agent/match-jobs-by-role",
+            prompt_text=prompt,
+            exec_callable=run_by_role
         )
         if not result.get("success"):
             raise HTTPException(status_code=422, detail=result.get("error", "Job matching failed."))
