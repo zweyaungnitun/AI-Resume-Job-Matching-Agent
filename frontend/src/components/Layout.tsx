@@ -1,6 +1,6 @@
 import { ReactNode, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Menu, X, Briefcase, Home, Upload, BarChart3, LogOut } from 'lucide-react'
+import { Menu, X, Briefcase, Home, Upload, BarChart3, LogOut, Shield } from 'lucide-react'
 import { Button } from './ui/button'
 import { cn } from '../lib/utils'
 import { useAuth } from '../context/AuthContext'
@@ -21,6 +21,7 @@ function Layout({ children }: LayoutProps) {
     { path: '/upload', label: 'Resume Hub', icon: Upload },
     { path: '/matches', label: 'Smart Matches', icon: Briefcase },
     { path: '/analysis-results', label: 'Insights', icon: BarChart3 },
+    { path: '/admin', label: 'AIOps Control', icon: Shield },
   ]
 
   const isActive = (path: string) => location.pathname === path

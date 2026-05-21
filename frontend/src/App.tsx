@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { GoogleOAuthProvider } from '@react-oauth/google'
-import Layout from './components/Layout'
+import OverviewPage from './pages/OverviewPage';
 import { WorkflowProvider } from './context/WorkflowContext'
 import { AuthProvider } from './context/AuthContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
@@ -12,6 +12,7 @@ import { JobInputPage } from './pages/JobInputPage'
 import { AnalysisResultsPage } from './pages/AnalysisResultsPage'
 import UploadResume from './pages/UploadResume'
 import MatchResults from './pages/MatchResults'
+import { AdminDashboard } from './pages/AdminDashboard'
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
 
@@ -25,13 +26,7 @@ function App() {
             <Route
               path="/"
               element={
-                <ProtectedRoute>
-                  <WorkflowProvider>
-                    <Layout>
-                      <Home />
-                    </Layout>
-                  </WorkflowProvider>
-                </ProtectedRoute>
+            <Home />
               }
             />
             <Route
@@ -101,6 +96,18 @@ function App() {
                   <WorkflowProvider>
                     <Layout>
                       <MatchResults />
+                    </Layout>
+                  </WorkflowProvider>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute>
+                  <WorkflowProvider>
+                    <Layout>
+                      <AdminDashboard />
                     </Layout>
                   </WorkflowProvider>
                 </ProtectedRoute>
