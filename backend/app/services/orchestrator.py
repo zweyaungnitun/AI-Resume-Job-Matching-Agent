@@ -14,6 +14,7 @@ from app.services.company_research_agent import CompanyResearchAgent
 from app.services.scoring_agent import ScoringAgent
 from app.services.cv_improvement_agent import CVImprovementAgent
 from app.services.job_matcher_agent import JobMatcherAgent
+from app.services.job_title_normalizer import JobTitleNormalizer
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ class MultiAgentOrchestrator:
         self.scorer = ScoringAgent()
         self.cv_improver = CVImprovementAgent()
         self.job_matcher = JobMatcherAgent()
+        self.title_normalizer = JobTitleNormalizer()
 
     # ------------------------------------------------------------------
     # Public methods
@@ -98,6 +100,8 @@ class MultiAgentOrchestrator:
         logger.info("Stage 3: Company research + scoring")
         company_name = job_analysis.get("company", "")
         job_title = job_analysis.get("job_title", "")
+        job_level = job_analysis.get("job_level")
+        job_specialization = job_analysis.get("job_specialization")
 
         with ThreadPoolExecutor(max_workers=2) as pool:
             company_future = pool.submit(self.company_researcher.research, company_name, job_title)
@@ -233,8 +237,16 @@ class MultiAgentOrchestrator:
             for job in jobs:
                 score = self.rag.score_match(resume_text, job)
                 gaps = self._quick_gap(resume_text, job.get("description", ""))
+
+                # Normalize job title for better semantic matching
+                original_title = job.get("job_title", "")
+                title_info = self.title_normalizer.normalize(original_title) if original_title else None
+
                 matches.append({
-                    "job_title": job.get("job_title", ""),
+                    "job_title": original_title,
+                    "job_title_normalized": title_info["normalized_title"] if title_info else original_title,
+                    "job_level": title_info.get("level") if title_info else None,
+                    "job_specialization": title_info.get("specialization") if title_info else None,
                     "company": job.get("company", ""),
                     "match_score": round(score * 100),
                     "description_snippet": job.get("description", "")[:300],
@@ -243,7 +255,7 @@ class MultiAgentOrchestrator:
                     "improvements": gaps.get("recommendations", []),
                 })
             matches.sort(key=lambda x: x["match_score"], reverse=True)
-            logger.info(f"Processed {len(matches)} RAG matches")
+            logger.info(f"Processed {len(matches)} RAG matches with title normalization")
             return matches
         except Exception as e:
             logger.error(f"RAG matching error: {str(e)}", exc_info=True)

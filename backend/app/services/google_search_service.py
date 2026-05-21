@@ -1,10 +1,12 @@
 """Google Search Service — uses Serper API with DuckDuckGo fallback for job search"""
 
 import logging
+import re
 import requests
 import time
 from typing import Optional
-from duckduckgo_search import DDGS
+from ddgs import DDGS
+from bs4 import BeautifulSoup
 
 from app.config import settings
 
@@ -16,6 +18,59 @@ class GoogleSearchService:
     """Searches for jobs using Google Search (via Serper API) with DuckDuckGo fallback"""
 
     SERPER_ENDPOINT = "https://google.serper.dev/search"
+
+    HEADERS = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        )
+    }
+
+    def fetch_job_from_url(self, url: str) -> dict:
+        """Scrape and extract job description text from a URL"""
+        try:
+            response = requests.get(url, headers=self.HEADERS, timeout=15)
+            response.raise_for_status()
+        except requests.RequestException as e:
+            return {"success": False, "error": str(e), "text": "", "title": ""}
+
+        soup = BeautifulSoup(response.text, "lxml")
+
+        # Remove noise elements
+        for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
+            tag.decompose()
+
+        title = soup.title.get_text(strip=True) if soup.title else ""
+
+        # Try common job-content containers first
+        job_content = ""
+        for selector in [
+            '[class*="job-description"]',
+            '[class*="jobDescription"]',
+            '[class*="description"]',
+            '[id*="job-description"]',
+            "article",
+            "main",
+        ]:
+            container = soup.select_one(selector)
+            if container:
+                job_content = container.get_text(separator="\n", strip=True)
+                if len(job_content) > 200:
+                    break
+
+        if not job_content:
+            job_content = soup.get_text(separator="\n", strip=True)
+
+        # Clean up excessive whitespace
+        job_content = re.sub(r"\n{3,}", "\n\n", job_content).strip()
+
+        return {
+            "success": True,
+            "text": job_content[:8000],
+            "title": title,
+            "url": url,
+        }
 
     def search_jobs(self, query: str, max_results: int = 5) -> list[dict]:
         """
@@ -108,7 +163,7 @@ class GoogleSearchService:
         start_time = time.time()
 
         try:
-            search_query = f"{query} job posting site:linkedin.com OR site:indeed.com OR site:glassdoor.com OR site:wellfound.com"
+            search_query = f"{query} job description requirements responsibilities"
             logger.debug(f"[DDGS_SEARCH] Built search query: '{search_query}'")
 
             logger.debug(f"[DDGS_SEARCH] Calling DDGS().text() with max_results={max_results}")

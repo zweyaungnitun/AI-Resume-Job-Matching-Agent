@@ -8,7 +8,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
 
 from app.config import settings
-from app.services.web_search_service import WebSearchService
+from app.services.google_search_service import GoogleSearchService
+from app.services.job_title_normalizer import JobTitleNormalizer
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -23,7 +24,8 @@ class JobAnalysisAgent:
             model=settings.GEMINI_MODEL,
             temperature=0.1,
         )
-        self.web = WebSearchService()
+        self.web = GoogleSearchService()
+        self.title_normalizer = JobTitleNormalizer()
 
     def analyze_from_url(self, url: str) -> dict:
         """Fetch a job posting from a URL and analyze it"""
@@ -171,6 +173,16 @@ Respond with valid JSON only, no markdown.
             result["source_url"] = source_url or ""
             result["source_title"] = source_title or result.get("job_title", "")
             result["raw_text"] = job_text[:3000]
+
+            # Normalize and classify job title
+            original_title = result.get("job_title", "")
+            if original_title:
+                job_title_info = self.title_normalizer.normalize(original_title)
+                result["job_title_normalized"] = job_title_info
+                result["job_title"] = job_title_info["normalized_title"]
+                result["job_level"] = job_title_info["level"]
+                result["job_specialization"] = job_title_info["specialization"]
+                logger.debug(f"[JOB_ANALYSIS] Normalized title: {original_title} -> {job_title_info['normalized_title']}")
 
             elapsed = time.time() - start_time
             logger.info(f"[JOB_ANALYSIS] Text analysis complete | job_title='{result.get('job_title')}' | company='{result.get('company')}' | time={elapsed:.2f}s")

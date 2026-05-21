@@ -20,9 +20,20 @@ class RAGService:
         self.embeddings = get_embeddings_model()
 
     def _ensure_pinecone(self):
-        """Lazy initialize Pinecone connection"""
+        """Lazy initialize Pinecone connection and create index if missing"""
         if self.pc is None:
             self.pc = Pinecone(api_key=self.pinecone_api_key)
+
+        if self.index is None:
+            existing_names = [idx.name for idx in self.pc.list_indexes()]
+            if self.index_name not in existing_names:
+                from pinecone import ServerlessSpec
+                self.pc.create_index(
+                    name=self.index_name,
+                    dimension=384,
+                    metric="cosine",
+                    spec=ServerlessSpec(cloud="aws", region="us-east-1"),
+                )
             self.index = self.pc.Index(self.index_name)
 
     def retrieve_jobs(self, query: str, top_k: int = 5) -> list[dict]:
@@ -30,7 +41,7 @@ class RAGService:
         self._ensure_pinecone()
 
         # Embed the query
-        query_embedding = self.embeddings.encode(query).tolist()
+        query_embedding = self.embeddings.encode(query)
 
         # Query Pinecone
         results = self.index.query(
@@ -64,7 +75,7 @@ class RAGService:
             job_text = f"{job.get('job_title', '')} {job.get('description', '')}"
 
             # Embed the job description
-            embedding = self.embeddings.encode(job_text).tolist()
+            embedding = self.embeddings.encode(job_text)
 
             # Prepare metadata
             metadata = {
@@ -88,9 +99,9 @@ class RAGService:
     def score_match(self, resume: str, job: dict) -> float:
         """Score how well a resume matches a job (0.0-1.0)"""
         # Embed resume and job
-        resume_embedding = self.embeddings.encode(resume).tolist()
+        resume_embedding = self.embeddings.encode(resume)
         job_text = f"{job.get('job_title', '')} {job.get('description', '')}"
-        job_embedding = self.embeddings.encode(job_text).tolist()
+        job_embedding = self.embeddings.encode(job_text)
 
         # Compute cosine similarity
         resume_vec = np.array(resume_embedding)

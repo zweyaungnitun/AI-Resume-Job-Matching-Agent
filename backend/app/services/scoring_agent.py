@@ -6,8 +6,8 @@ import time
 import numpy as np
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_core.prompts import PromptTemplate
-
 from app.config import settings
+import random
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -24,8 +24,25 @@ class ScoringAgent:
         )
         self.embeddings = GoogleGenerativeAIEmbeddings(
             google_api_key=settings.GOOGLE_API_KEY,
-            model="models/embedding-001",
+            model="models/text-embedding-004",
         )
+
+    def _invoke_llm_with_retry(self, chain, input_dict, max_retries=3, base_delay=2.0):
+        """
+        Invoke the LLM chain with retries and exponential backoff.
+        """
+        for attempt in range(max_retries):
+            try:
+                response = chain.invoke(input_dict)
+                return response
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
+                    logger.warning(f"[SCORING] Gemini LLM call failed (attempt {attempt+1}/{max_retries}): {e}. Retrying in {delay:.1f}s...")
+                    time.sleep(delay)
+                else:
+                    logger.error(f"[SCORING] Gemini LLM call failed after {max_retries} attempts: {e}")
+                    raise
 
     def score(self, resume_text: str, job_analysis: dict, company_info: dict = None) -> dict:
         """
@@ -83,9 +100,9 @@ Respond with valid JSON only, no markdown.
 """,
             )
 
-            logger.debug(f"[SCORING] Invoking Gemini LLM for detailed scoring")
+            logger.debug(f"[SCORING] Invoking Gemini LLM for detailed scoring (with retry)")
             chain = prompt | self.llm
-            response = chain.invoke({
+            input_dict = {
                 "resume_text": resume_text[:4000],
                 "job_text": job_text[:3000],
                 "job_title": job_analysis.get("job_title", ""),
@@ -93,7 +110,8 @@ Respond with valid JSON only, no markdown.
                 "preferred_skills": ", ".join(job_analysis.get("preferred_skills", [])),
                 "experience_years": job_analysis.get("required_experience_years", 0),
                 "tech_stack": ", ".join(job_analysis.get("tech_stack", [])),
-            })
+            }
+            response = self._invoke_llm_with_retry(chain, input_dict)
 
             logger.debug(f"[SCORING] Received response from Gemini | response_len={len(response.content)} chars")
 
