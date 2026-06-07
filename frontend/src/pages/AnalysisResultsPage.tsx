@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWorkflow } from '../context/WorkflowContext';
+import { generateCareerRoadmap, exportResumeToDOCX } from '../services/api';
 import { ScoreCard } from '../components/ScoreCard';
 import { SkillsDisplay } from '../components/SkillsDisplay';
 import { CompanyProfile } from '../components/CompanyProfile';
@@ -9,21 +10,70 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Progress } from '../components/ui/progress';
-import { Briefcase, CheckCircle, AlertCircle, Building2, Zap, BarChart3, ArrowRight, ChevronLeft, MapPin, LineChart, Rocket, TrendingUp } from 'lucide-react';
+import { Briefcase, CheckCircle, AlertCircle, Building2, Zap, BarChart3, ArrowRight, ChevronLeft, MapPin, LineChart, Rocket, TrendingUp, Download } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { SegmentedTabs } from '../components/ui/segmented-tabs';
 import { LoadingSpinner } from '../components/ui/loading-spinner';
 
 export const AnalysisResultsPage: React.FC = () => {
   const navigate = useNavigate();
-  const { cvText, analysisResults, isLoadingAnalysis, errorAnalysis } = useWorkflow();
-  const [activeTab, setActiveTab] = useState<'overview' | 'skills' | 'improvements' | 'company' | 'similar'>('overview');
+  const { cvText, analysisResults, careerRoadmap, isLoadingAnalysis, errorAnalysis, isLoadingRoadmap, setIsLoadingRoadmap, setCareerRoadmap, setErrorRoadmap } = useWorkflow();
+  const [activeTab, setActiveTab] = useState<'overview' | 'skills' | 'improvements' | 'company' | 'similar' | 'roadmap'>('overview');
+  const [isExportingCv, setIsExportingCv] = useState(false);
 
   useEffect(() => {
     if (!cvText || !analysisResults) {
       navigate('/cv-input');
     }
   }, [cvText, analysisResults, navigate]);
+
+  const handleGenerateRoadmap = async () => {
+    try {
+      setIsLoadingRoadmap(true);
+      setErrorRoadmap(null);
+
+      const scoreResult = analysisResults.score_result || {};
+      const roadmapData = await generateCareerRoadmap(
+        cvText,
+        analysisResults.job_analysis?.job_title || 'Target Role',
+        analysisResults.job_analysis?.company || 'Company',
+        scoreResult.missing_required_skills || [],
+        scoreResult.missing_preferred_skills || [],
+        6
+      );
+
+      if (roadmapData.success) {
+        setCareerRoadmap(roadmapData);
+        navigate('/career-roadmap');
+      } else {
+        setErrorRoadmap(roadmapData.error || 'Failed to generate roadmap');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to generate roadmap';
+      setErrorRoadmap(message);
+    } finally {
+      setIsLoadingRoadmap(false);
+    }
+  };
+
+  const handleExportCvDOCX = async () => {
+    try {
+      setIsExportingCv(true);
+      const blob = await exportResumeToDOCX(cvText, 'resume');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'resume.docx';
+      document.body.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Export failed:', error);
+    } finally {
+      setIsExportingCv(false);
+    }
+  };
 
   if (!cvText || !analysisResults) return null;
 
@@ -127,9 +177,15 @@ export const AnalysisResultsPage: React.FC = () => {
           { id: 'improvements', label: 'Improvements', icon: <Rocket className="h-4 w-4" /> },
           { id: 'company', label: 'Company', icon: <Building2 className="h-4 w-4" /> },
           ...(ragMatches.length > 0 ? [{ id: 'similar', label: 'More Like This', icon: <LineChart className="h-4 w-4" /> }] : []),
+          { id: 'roadmap', label: 'Career Roadmap', icon: <TrendingUp className="h-4 w-4" /> },
         ]}
         activeTab={activeTab}
-        onTabChange={(tab) => setActiveTab(tab as any)}
+        onTabChange={async (tab) => {
+          if (tab === 'roadmap' && !careerRoadmap) {
+            await handleGenerateRoadmap();
+          }
+          setActiveTab(tab as any);
+        }}
       />
 
       {/* Tab Content */}
@@ -380,6 +436,62 @@ export const AnalysisResultsPage: React.FC = () => {
             ))}
           </div>
         )}
+
+        {activeTab === 'roadmap' && (
+          <div className="space-y-4">
+            <Card className="bg-gradient-to-br from-blue-50 to-purple-50 border-blue-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-blue-600" />
+                  Build Your Career Roadmap
+                </CardTitle>
+                <CardDescription>
+                  Get a personalized 6-month learning plan to bridge your skill gaps
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-foreground mb-4">
+                  Based on your profile and the {jobAnalysis.job_title} role at {jobAnalysis.company}, we'll create a custom roadmap with:
+                </p>
+                <ul className="space-y-2 text-sm mb-6">
+                  <li className="flex gap-2">
+                    <span className="text-green-600">✓</span>
+                    <span>Month-by-month learning milestones</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="text-green-600">✓</span>
+                    <span>Recommended courses and resources</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="text-green-600">✓</span>
+                    <span>Hands-on projects to build experience</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="text-green-600">✓</span>
+                    <span>Progress checkpoints and validation</span>
+                  </li>
+                </ul>
+                <Button
+                  onClick={handleGenerateRoadmap}
+                  className="w-full gap-2"
+                  size="lg"
+                >
+                  {isLoadingRoadmap ? (
+                    <>
+                      <span className="animate-spin">⚙️</span>
+                      Generating your roadmap...
+                    </>
+                  ) : (
+                    <>
+                      Generate Career Roadmap
+                      <ArrowRight className="h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
 
       {/* Action Buttons */}
@@ -391,6 +503,15 @@ export const AnalysisResultsPage: React.FC = () => {
         >
           <ChevronLeft className="h-4 w-4" />
           Back
+        </Button>
+        <Button
+          variant="outline"
+          onClick={handleExportCvDOCX}
+          disabled={isExportingCv}
+          className="flex items-center gap-2"
+        >
+          <Download className="h-4 w-4" />
+          {isExportingCv ? 'Exporting...' : 'Export CV as DOCX'}
         </Button>
         <Button
           onClick={() => navigate('/job-input')}

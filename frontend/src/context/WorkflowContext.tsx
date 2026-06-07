@@ -17,17 +17,25 @@ interface WorkflowContextType {
   analysisResults: any | null;
   setAnalysisResults: (results: any) => void;
 
+  // Career Roadmap
+  careerRoadmap: any | null;
+  setCareerRoadmap: (roadmap: any) => void;
+
   // Loading states
   isLoadingReview: boolean;
   setIsLoadingReview: (loading: boolean) => void;
   isLoadingAnalysis: boolean;
   setIsLoadingAnalysis: (loading: boolean) => void;
+  isLoadingRoadmap: boolean;
+  setIsLoadingRoadmap: (loading: boolean) => void;
 
   // Error states
   errorReview: string | null;
   setErrorReview: (error: string | null) => void;
   errorAnalysis: string | null;
   setErrorAnalysis: (error: string | null) => void;
+  errorRoadmap: string | null;
+  setErrorRoadmap: (error: string | null) => void;
 
   // Clear workflow
   reset: () => void;
@@ -41,10 +49,13 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [jobSourceType, setJobSourceType] = useState<'url' | 'text' | 'search' | null>(null);
   const [jobSourceValue, setJobSourceValue] = useState('');
   const [analysisResults, setAnalysisResults] = useState<any>(null);
+  const [careerRoadmap, setCareerRoadmap] = useState<any>(null);
   const [isLoadingReview, setIsLoadingReview] = useState(false);
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
+  const [isLoadingRoadmap, setIsLoadingRoadmap] = useState(false);
   const [errorReview, setErrorReview] = useState<string | null>(null);
   const [errorAnalysis, setErrorAnalysis] = useState<string | null>(null);
+  const [errorRoadmap, setErrorRoadmap] = useState<string | null>(null);
 
   const reset = () => {
     setCVText('');
@@ -52,8 +63,10 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setJobSourceType(null);
     setJobSourceValue('');
     setAnalysisResults(null);
+    setCareerRoadmap(null);
     setErrorReview(null);
     setErrorAnalysis(null);
+    setErrorRoadmap(null);
   };
 
   const value: WorkflowContextType = {
@@ -67,14 +80,20 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setJobSourceValue,
     analysisResults,
     setAnalysisResults,
+    careerRoadmap,
+    setCareerRoadmap,
     isLoadingReview,
     setIsLoadingReview,
     isLoadingAnalysis,
     setIsLoadingAnalysis,
+    isLoadingRoadmap,
+    setIsLoadingRoadmap,
     errorReview,
     setErrorReview,
     errorAnalysis,
     setErrorAnalysis,
+    errorRoadmap,
+    setErrorRoadmap,
     reset,
   };
 

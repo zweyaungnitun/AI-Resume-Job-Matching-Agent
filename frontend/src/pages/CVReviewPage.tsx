@@ -1,17 +1,19 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWorkflow } from '../context/WorkflowContext';
+import { exportResumeToDOCX } from '../services/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Progress } from '../components/ui/progress';
-import { AlertCircle, CheckCircle, AlertTriangle, Zap, ArrowRight, ChevronLeft } from 'lucide-react';
+import { AlertCircle, CheckCircle, AlertTriangle, Zap, ArrowRight, ChevronLeft, Download } from 'lucide-react';
 import { scoreToColor } from '../lib/utils';
 import { LoadingSpinner } from '../components/ui/loading-spinner';
 
 export const CVReviewPage: React.FC = () => {
   const navigate = useNavigate();
   const { cvText, cvReview, isLoadingReview, errorReview } = useWorkflow();
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     if (!cvText) {
@@ -19,6 +21,26 @@ export const CVReviewPage: React.FC = () => {
       return;
     }
   }, [cvText, navigate]);
+
+  const handleExportDOCX = async () => {
+    try {
+      setIsExporting(true);
+      const blob = await exportResumeToDOCX(cvText, 'resume');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'resume.docx';
+      document.body.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Failed to export resume as DOCX');
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   if (!cvText) return null;
 
@@ -85,23 +107,23 @@ export const CVReviewPage: React.FC = () => {
       </div>
 
       {/* Overall Score Card */}
-      <Card className={`border-2 shadow-xl ${scoreToColor(overallScore).border} ${scoreToColor(overallScore).bg}`}>
+      <Card className={`border-0 shadow-2xl bg-gradient-to-br from-blue-50 via-white to-purple-50 rounded-3xl transition-all duration-500 ${scoreToColor(overallScore).border}`}> 
         <CardHeader className="pb-3">
-          <div className="flex items-start justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <CardTitle>Overall Score</CardTitle>
-              <CardDescription>Your CV quality assessment</CardDescription>
+              <CardTitle className="text-2xl font-extrabold tracking-tight text-gray-900">Overall Score</CardTitle>
+              <CardDescription className="text-base text-gray-500">Your CV quality assessment</CardDescription>
             </div>
-            <div className={`text-4xl font-bold ${scoreToColor(overallScore).text}`}>
+            <div className={`text-5xl font-black drop-shadow-lg ${scoreToColor(overallScore).text}`}>
               {overallScore}
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <Progress value={overallScore} className="h-3 transition-all duration-700" />
+        <CardContent className="space-y-6">
+          <Progress value={overallScore} className="h-4 rounded-full bg-gray-200/70" />
 
           {/* Score Breakdown */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-2">
             {[
               { label: 'ATS Score', value: cvReview.ats_score || 0 },
               { label: 'Structure', value: cvReview.structure_score || 0 },
@@ -109,9 +131,12 @@ export const CVReviewPage: React.FC = () => {
             ].map((item) => {
               const colors = scoreToColor(item.value);
               return (
-                <div key={item.label} className={`p-3 rounded-lg ${colors.bg} ${colors.text} text-center`}>
-                  <p className="text-sm font-semibold">{item.value}</p>
-                  <p className="text-xs opacity-80">{item.label}</p>
+                <div
+                  key={item.label}
+                  className={`p-5 rounded-2xl shadow-md bg-gradient-to-br from-white via-gray-50 to-${colors.bg.replace('bg-', '')} border ${colors.border} flex flex-col items-center hover:scale-105 transition-transform duration-300`}
+                >
+                  <p className={`text-2xl font-bold ${colors.text}`}>{item.value}</p>
+                  <p className="text-xs opacity-80 mt-1 font-medium uppercase tracking-wide text-gray-500">{item.label}</p>
                 </div>
               );
             })}
@@ -299,6 +324,15 @@ export const CVReviewPage: React.FC = () => {
         >
           <ChevronLeft className="h-4 w-4" />
           Back
+        </Button>
+        <Button
+          variant="outline"
+          onClick={handleExportDOCX}
+          disabled={isExporting}
+          className="flex items-center gap-2"
+        >
+          <Download className="h-4 w-4" />
+          {isExporting ? 'Exporting...' : 'Export as DOCX'}
         </Button>
         <Button
           onClick={() => navigate('/job-input')}

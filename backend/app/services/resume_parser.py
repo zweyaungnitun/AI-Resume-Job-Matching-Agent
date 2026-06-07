@@ -37,11 +37,25 @@ class ResumeParser:
         }
 
     def parse_docx(self, file_path: str) -> dict:
-        """Parse DOCX resume and extract text"""
+        """Parse DOCX resume and extract text including tables"""
         doc = Document(file_path)
         text = ""
+
+        # Extract text from paragraphs
         for paragraph in doc.paragraphs:
-            text += paragraph.text + "\n"
+            if paragraph.text.strip():
+                text += paragraph.text + "\n"
+
+        # Extract text from tables (common in resumes)
+        for table in doc.tables:
+            for row in table.rows:
+                row_text = []
+                for cell in row.cells:
+                    cell_text = cell.text.strip()
+                    if cell_text:
+                        row_text.append(cell_text)
+                if row_text:
+                    text += " | ".join(row_text) + "\n"
 
         return {
             "raw_text": text.strip(),
@@ -120,3 +134,27 @@ Response (JSON array only):"""
                 except json.JSONDecodeError:
                     pass
             return []
+
+    def export_to_docx(self, resume_text: str, output_path: str) -> str:
+        """Export resume text as DOCX file"""
+        doc = Document()
+
+        # Parse resume text into sections
+        sections = resume_text.split('\n\n')
+
+        for section in sections:
+            if not section.strip():
+                continue
+
+            lines = section.strip().split('\n')
+            for line in lines:
+                if line.strip():
+                    # Simple formatting: detect headers (all caps or short lines)
+                    if len(line.strip()) < 50 and line.isupper():
+                        heading = doc.add_heading(line.strip(), level=2)
+                        heading.style = 'Heading 2'
+                    else:
+                        doc.add_paragraph(line.strip())
+
+        doc.save(output_path)
+        return output_path

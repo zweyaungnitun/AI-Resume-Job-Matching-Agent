@@ -10,9 +10,11 @@ import { CVInputPage } from './pages/CVInputPage'
 import { CVReviewPage } from './pages/CVReviewPage'
 import { JobInputPage } from './pages/JobInputPage'
 import { AnalysisResultsPage } from './pages/AnalysisResultsPage'
+import { CareerRoadmapPage } from './pages/CareerRoadmapPage'
 import UploadResume from './pages/UploadResume'
 import MatchResults from './pages/MatchResults'
 import { AdminDashboard } from './pages/AdminDashboard'
+import Layout from './components/Layout'
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
 
@@ -72,6 +74,18 @@ function App() {
                   <WorkflowProvider>
                     <Layout>
                       <AnalysisResultsPage />
+                    </Layout>
+                  </WorkflowProvider>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/career-roadmap"
+              element={
+                <ProtectedRoute>
+                  <WorkflowProvider>
+                    <Layout>
+                      <CareerRoadmapPage />
                     </Layout>
                   </WorkflowProvider>
                 </ProtectedRoute>

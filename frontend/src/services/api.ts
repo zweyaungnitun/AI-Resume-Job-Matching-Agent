@@ -272,3 +272,54 @@ export async function analyzeGaps(resumeText: string, jobDescription: string): P
   if (!response.ok) throw new Error("Gap analysis failed");
   return response.json();
 }
+
+export async function generateCareerRoadmap(
+  resumeText: string,
+  jobTitle: string,
+  company: string,
+  missingRequiredSkills: string[] = [],
+  missingPreferredSkills: string[] = [],
+  targetTimeframeMonths: number = 6
+): Promise<ApiResponse<any>> {
+  logger.info('Generating career roadmap', { jobTitle });
+  const response = await authedFetch(`${API_BASE_URL}/agent/career-roadmap`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      resume_text: resumeText,
+      job_title: jobTitle,
+      company: company,
+      missing_required_skills: missingRequiredSkills,
+      missing_preferred_skills: missingPreferredSkills,
+      target_timeframe_months: targetTimeframeMonths,
+    }),
+  });
+
+  if (!response.ok) {
+    logger.error('Career roadmap generation failed');
+    throw new Error("Career roadmap generation failed");
+  }
+  const data = await response.json();
+  logger.debug('Career roadmap response', data);
+  return data;
+}
+
+export async function exportResumeToDOCX(resumeText: string, filename: string = "resume"): Promise<Blob> {
+  logger.info('Exporting resume as DOCX', { filename });
+  const response = await authedFetch(`${API_BASE_URL}/resume/export-docx`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      resume_text: resumeText,
+      filename: filename,
+    }),
+  });
+
+  if (!response.ok) {
+    logger.error('Resume export failed');
+    throw new Error("Resume export to DOCX failed");
+  }
+  const blob = await response.blob();
+  logger.debug('Resume exported successfully', { size: blob.size });
+  return blob;
+}

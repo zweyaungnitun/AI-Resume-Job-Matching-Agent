@@ -2,6 +2,7 @@ import os
 import logging
 import traceback
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from app.dependencies.auth import get_current_user
@@ -135,3 +136,59 @@ Current Skills: {', '.join(resume.skills)}
         "extracted_skills": extracted_skills,
         "extracted_experience": extracted_experience,
     }
+
+
+class ExportResumeRequest(BaseModel):
+    resume_text: str
+    filename: str = "resume"
+
+
+@router.post("/export-docx")
+async def export_resume_as_docx(
+    request: ExportResumeRequest,
+    user=Depends(get_current_user)
+):
+    """Export resume text as DOCX file"""
+    try:
+        logging.info(f"[RESUME] Exporting resume as DOCX for user {user['email']}")
+
+        if not request.resume_text or len(request.resume_text.strip()) < 10:
+            raise HTTPException(status_code=400, detail="Resume text is too short to export")
+
+        # Create filename
+        filename = request.filename.replace(" ", "_") if request.filename else "resume"
+        if not filename.endswith(".docx"):
+            filename += ".docx"
+
+        output_path = f"uploads/{filename}"
+
+        # Export to DOCX
+        parser.export_to_docx(request.resume_text, output_path)
+
+        if not os.path.exists(output_path):
+            raise HTTPException(status_code=500, detail="Failed to generate DOCX file")
+
+        logging.info(f"[RESUME] DOCX exported successfully to {output_path}")
+
+        # Return file as download
+        return FileResponse(
+            output_path,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            filename=filename
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"[RESUME] Error exporting resume as DOCX: {str(e)}")
+        logging.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Error exporting resume: {str(e)}")
+    finally:
+        # Clean up uploaded file after sending
+        output_path = f"uploads/{filename}" if 'filename' in locals() else None
+        if output_path and os.path.exists(output_path):
+            try:
+                os.remove(output_path)
+                logging.info(f"[RESUME] Cleaned up exported file")
+            except Exception as e:
+                logging.warning(f"[RESUME] Could not clean up file: {str(e)}")

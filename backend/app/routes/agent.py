@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.services.agent_service import MatchingAgent
 from app.services.orchestrator import MultiAgentOrchestrator
+from app.services.career_roadmap_agent import CareerRoadmapAgent
 from app.dependencies.auth import get_current_user
 from app.database import get_db
 from app.services.aiops_service import AIOpsService
@@ -17,6 +18,7 @@ router = APIRouter(prefix="/agent", tags=["agent"])
 
 agent = MatchingAgent()
 orchestrator = MultiAgentOrchestrator()
+roadmap_agent = CareerRoadmapAgent()
 
 
 # ── Request / Response models ──────────────────────────────────────────────────
@@ -127,9 +129,80 @@ class RoleBasedJobMatchRequest(BaseModel):
     num_web_matches: int = 5
 
 
+class CareerRoadmapRequest(BaseModel):
+    resume_text: str
+    job_title: str
+    company: str
+    missing_required_skills: list[str] = []
+    missing_preferred_skills: list[str] = []
+    target_timeframe_months: int = 6
+
+
+class CareerRoadmapResponse(BaseModel):
+    model_config = ConfigDict(extra='allow')
+    success: bool
+    job_title: str
+    current_level: str
+    target_level: str
+    estimated_timeline_months: int
+    roadmap: list[dict]
+    critical_path: list[str]
+    quick_wins: list[str]
+    learning_resources_summary: dict
+
+
 class FeedbackRequest(BaseModel):
     interaction_id: str
     rating: int  # 1 for thumbs up, -1 for thumbs down
+
+
+# ── Career Roadmap Endpoint ─────────────────────────────────────────────
+
+@router.post("/career-roadmap", response_model=CareerRoadmapResponse)
+async def generate_career_roadmap(
+    request: CareerRoadmapRequest,
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Generate a personalized career roadmap based on skill gaps.
+    Returns a 3-6 month learning plan with milestones, courses, and checkpoints.
+    """
+    if len(request.resume_text.strip()) < 50:
+        raise HTTPException(status_code=400, detail="Resume text too short.")
+    if len(request.job_title.strip()) < 2:
+        raise HTTPException(status_code=400, detail="Job title required.")
+
+    prompt = f"Resume: {request.resume_text}\nJob: {request.job_title} at {request.company}"
+
+    def run_roadmap(prompt_input):
+        return roadmap_agent.generate(
+            resume_text=request.resume_text,
+            job_title=request.job_title,
+            company=request.company,
+            missing_required_skills=request.missing_required_skills,
+            missing_preferred_skills=request.missing_preferred_skills,
+            target_timeframe_months=request.target_timeframe_months,
+        )
+
+    try:
+        logger.info(f"[ROUTE_ROADMAP] Career roadmap requested for {request.job_title}")
+        result = AIOpsService.process_ai_interaction(
+            db=db,
+            user_email=user["email"],
+            endpoint="/agent/career-roadmap",
+            prompt_text=prompt,
+            exec_callable=run_roadmap
+        )
+        if not result.get("success"):
+            raise HTTPException(status_code=422, detail=result.get("error", "Roadmap generation failed."))
+        logger.info(f"[ROUTE_ROADMAP] Roadmap generated successfully")
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[ROUTE_ROADMAP] Roadmap generation failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Roadmap generation failed: {str(e)}")
 
 
 # ── Feedback Endpoint ──────────────────────────────────────────────────
