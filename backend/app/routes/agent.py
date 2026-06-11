@@ -140,15 +140,16 @@ class CareerRoadmapRequest(BaseModel):
 
 class CareerRoadmapResponse(BaseModel):
     model_config = ConfigDict(extra='allow')
-    success: bool
-    job_title: str
-    current_level: str
-    target_level: str
-    estimated_timeline_months: int
-    roadmap: list[dict]
-    critical_path: list[str]
-    quick_wins: list[str]
-    learning_resources_summary: dict
+    success: bool = True
+    job_title: Optional[str] = None
+    current_level: Optional[str] = None
+    target_level: Optional[str] = None
+    estimated_timeline_months: Optional[int] = None
+    roadmap: Optional[list[dict]] = None
+    critical_path: Optional[list[str]] = None
+    quick_wins: Optional[list[str]] = None
+    learning_resources_summary: Optional[dict] = None
+    error: Optional[str] = None
 
 
 class FeedbackRequest(BaseModel):

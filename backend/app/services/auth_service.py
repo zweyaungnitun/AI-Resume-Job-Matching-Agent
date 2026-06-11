@@ -77,12 +77,13 @@ class AuthService:
             raise ValueError("Invalid ID token")
 
     @staticmethod
-    def create_access_token(email: str, name: Optional[str] = None, auth_method: str = "password") -> str:
+    def create_access_token(email: str, name: Optional[str] = None, auth_method: str = "password", is_admin: bool = False) -> str:
         """Create JWT access token"""
         payload = {
             "email": email,
             "name": name,
             "auth_method": auth_method,
+            "is_admin": is_admin,
             "iat": datetime.utcnow(),
             "exp": datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
             "type": "access",
@@ -127,7 +128,12 @@ class AuthService:
             if not email:
                 raise ValueError("Missing email in token")
 
-            return AuthService.create_access_token(email)
+            return AuthService.create_access_token(
+                email=email,
+                name=payload.get("name"),
+                auth_method=payload.get("auth_method", "password"),
+                is_admin=payload.get("is_admin", False)
+            )
         except jwt.ExpiredSignatureError:
             logger.warning("[AUTH] Refresh token expired")
             raise ValueError("Refresh token expired")

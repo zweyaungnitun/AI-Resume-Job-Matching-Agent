@@ -23,8 +23,9 @@ async def get_current_user(authorization: str = Header(...)):
         user = {
             "email": payload.get("email"),
             "name": payload.get("name"),
+            "is_admin": payload.get("is_admin", False),
         }
-        logger.debug(f"[AUTH] User authenticated: {user['email']}")
+        logger.debug(f"[AUTH] User authenticated: {user['email']} (admin={user['is_admin']})")
         return user
 
     except ValueError as e:

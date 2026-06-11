@@ -296,12 +296,17 @@ export async function generateCareerRoadmap(
   });
 
   if (!response.ok) {
-    logger.error('Career roadmap generation failed');
-    throw new Error("Career roadmap generation failed");
+    logger.error('Career roadmap generation failed', { status: response.status });
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || "Career roadmap generation failed");
   }
   const data = await response.json();
   logger.debug('Career roadmap response', data);
-  return data;
+  // Ensure success field is set
+  return {
+    ...data,
+    success: data.success !== false,
+  };
 }
 
 export async function exportResumeToDOCX(resumeText: string, filename: string = "resume"): Promise<Blob> {

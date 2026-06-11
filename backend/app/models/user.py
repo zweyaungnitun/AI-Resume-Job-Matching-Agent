@@ -18,6 +18,7 @@ class User(Base):
     # Account status
     is_active = Column(Boolean, default=True)
     auth_method = Column(String, default="password")  # "password", "google", or "both"
+    is_admin = Column(Boolean, default=False)  # Admin access flag
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())

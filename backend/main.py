@@ -5,7 +5,7 @@ from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
 
 from app.config import settings
-from app.routes import resume, agent, health, auth
+from app.routes import resume, agent, health, auth, admin
 from app.logger import get_logger
 from app.middleware.security import SecurityHeadersMiddleware, RequestMonitoringMiddleware
 from app.database import init_db
@@ -67,6 +67,7 @@ app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(resume.router)
 app.include_router(agent.router)
+app.include_router(admin.router)
 
 @app.get("/")
 async def root():

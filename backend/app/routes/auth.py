@@ -116,7 +116,7 @@ async def oauth_callback(
 
         # Create JWT tokens
         access_token = AuthService.create_access_token(
-            email=user.email, name=user.name, auth_method="google"
+            email=user.email, name=user.name, auth_method="google", is_admin=user.is_admin
         )
         refresh_token = AuthService.create_refresh_token(user.email)
 
@@ -194,7 +194,7 @@ async def signup(request: SignupRequest, db: Session = Depends(get_db)):
 
         # Create JWT tokens
         access_token = AuthService.create_access_token(
-            email=user.email, name=user.name, auth_method="password"
+            email=user.email, name=user.name, auth_method="password", is_admin=user.is_admin
         )
         refresh_token = AuthService.create_refresh_token(user.email)
 
@@ -239,7 +239,7 @@ async def login_password(request: LoginRequest, db: Session = Depends(get_db)):
 
         # Create JWT tokens
         access_token = AuthService.create_access_token(
-            email=user.email, name=user.name, auth_method="password"
+            email=user.email, name=user.name, auth_method="password", is_admin=user.is_admin
         )
         refresh_token = AuthService.create_refresh_token(user.email)
 
@@ -297,7 +297,7 @@ async def google_login(request: GoogleTokenRequest, db: Session = Depends(get_db
 
         # Create JWT tokens
         access_token = AuthService.create_access_token(
-            email=user.email, name=user.name, auth_method="google"
+            email=user.email, name=user.name, auth_method="google", is_admin=user.is_admin
         )
         refresh_token = AuthService.create_refresh_token(user.email)
 
